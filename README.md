@@ -107,3 +107,7 @@ Atomdown does not use Go's runtime `plugin` package. This choice keeps the libra
 ## Contributing
 
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md), then open a Bug report or Proposal. Coding agents must also read [`AGENTS.md`](AGENTS.md).
+
+## License
+
+Atomdown uses the [MIT License](LICENSE).
