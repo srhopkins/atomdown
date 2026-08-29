@@ -257,12 +257,12 @@ func parseDirective(body []byte, sourceRange byteRange) (directive, bool, error)
 				return directive{}, true, fmt.Errorf("duplicate XML attribute %q", key)
 			}
 			seenAttributes[key] = struct{}{}
-			switch key {
-			case "id":
+			switch {
+			case key == "id" && (result.kind == directiveAtom || result.kind == directiveGroupStart):
 				result.id = attribute.Value
-			case "slug":
+			case key == "slug" && (result.kind == directiveAtom || result.kind == directiveGroupStart):
 				result.slug = attribute.Value
-			case "version":
+			case key == "version" && result.kind == directiveDocument:
 				result.version = attribute.Value
 			default:
 				result.attributes = append(result.attributes, Attribute{Name: key, Value: attribute.Value})
@@ -314,6 +314,7 @@ func scanMarkdownBlocks(source []byte, directives []directive) []markdownBlock {
 		if !ok {
 			continue
 		}
+		start = sourceLineStart(source, start)
 		blocks = append(blocks, markdownBlock{start: start, nodeType: node.Kind().String()})
 	}
 	for index := range blocks {
@@ -343,6 +344,10 @@ func markdownNodeStart(node ast.Node) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func sourceLineStart(source []byte, offset int) int {
+	return bytes.LastIndexByte(source[:offset], '\n') + 1
 }
 
 func trimBlockEnd(source []byte, start, end int) int {

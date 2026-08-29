@@ -111,6 +111,55 @@ First.
 	}
 }
 
+func TestMisplacedCoreAttributesArePreserved(t *testing.T) {
+	source := []byte(`<!-- <atomdown version="1" id="document-id" slug="document-slug"/> -->
+
+<!-- <atom id="4P8W2H6K" version="2"/> -->
+
+First.
+
+<!-- <atom-group id="7K3M9X2D" version="3"> -->
+<!-- <atom id="9R3C7M5D"/> -->
+Second.
+<!-- </atom-group> -->
+`)
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	if got := document.Attributes; len(got) != 2 || got[0].Name != "id" || got[1].Name != "slug" {
+		t.Fatalf("document attributes = %#v", got)
+	}
+	if got := document.Atoms[0].Attributes; len(got) != 1 || got[0].Name != "version" || got[0].Value != "2" {
+		t.Fatalf("atom attributes = %#v", got)
+	}
+	if got := document.Groups[0].Attributes; len(got) != 1 || got[0].Name != "version" || got[0].Value != "3" {
+		t.Fatalf("group attributes = %#v", got)
+	}
+
+	stream := Tokenize(source)
+	if got := stream.Tokens[0].Directive.Attributes; len(got) != 2 || got[0].Name != "id" || got[1].Name != "slug" {
+		t.Fatalf("document token attributes = %#v", got)
+	}
+	for _, token := range stream.Tokens {
+		if token.Directive != nil && token.Directive.Element == "atom" && token.Directive.ID == "4P8W2H6K" {
+			if got := token.Directive.Attributes; len(got) != 1 || got[0].Name != "version" {
+				t.Fatalf("atom token attributes = %#v", got)
+			}
+		}
+	}
+
+	normalized, err := NormalizedXML(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{`id="document-id"`, `slug="document-slug"`, `version="2"`, `version="3"`} {
+		if !strings.Contains(string(normalized), expected) {
+			t.Fatalf("normalized XML missing %q:\n%s", expected, normalized)
+		}
+	}
+}
+
 func TestNewID(t *testing.T) {
 	id, err := NewID()
 	if err != nil {
@@ -146,6 +195,59 @@ Paragraph.
 	}
 	if !foundDirective || !foundHeading {
 		t.Fatalf("directive=%v heading=%v tokens=%#v", foundDirective, foundHeading, stream.Tokens)
+	}
+}
+
+func TestAtomContentIncludesMarkdownBlockMarkers(t *testing.T) {
+	tests := []struct {
+		name     string
+		markdown string
+		nodeType string
+	}{
+		{name: "heading", markdown: "## Evidence", nodeType: "Heading"},
+		{name: "list", markdown: "- First\n- Second", nodeType: "List"},
+		{name: "blockquote", markdown: "> Quoted", nodeType: "Blockquote"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\n" + test.markdown + "\n")
+			document := Parse(source)
+			if document.HasErrors() {
+				t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+			}
+			if len(document.Atoms) != 1 {
+				t.Fatalf("atoms = %#v", document.Atoms)
+			}
+			atom := document.Atoms[0]
+			if atom.Text != test.markdown {
+				t.Fatalf("Text = %q, want %q", atom.Text, test.markdown)
+			}
+			if atom.NodeType != test.nodeType {
+				t.Fatalf("NodeType = %q, want %q", atom.NodeType, test.nodeType)
+			}
+			if got := string(source[atom.Content.Start.Offset:atom.Content.End.Offset]); got != test.markdown {
+				t.Fatalf("Content = %q, want %q", got, test.markdown)
+			}
+
+			stream := Tokenize(source)
+			var reconstructed strings.Builder
+			foundBlock := false
+			for _, token := range stream.Tokens {
+				reconstructed.WriteString(token.Raw)
+				if token.Kind == TokenMarkdown && token.NodeType == test.nodeType {
+					foundBlock = true
+					if token.Raw != test.markdown {
+						t.Fatalf("token Raw = %q, want %q", token.Raw, test.markdown)
+					}
+				}
+			}
+			if reconstructed.String() != string(source) {
+				t.Fatalf("token stream is not lossless:\n%s", reconstructed.String())
+			}
+			if !foundBlock {
+				t.Fatalf("missing %s token: %#v", test.nodeType, stream.Tokens)
+			}
+		})
 	}
 }
 
