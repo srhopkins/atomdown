@@ -1,0 +1,204 @@
+{
+  "manifest_version": 1,
+  "suite": "atomdown-core-1",
+  "description": "Language-neutral Atomdown Core 1 conformance cases. A second implementer runs any compatible binary against this manifest.",
+  "cases": [
+    {
+      "name": "valid-minimal",
+      "category": "valid",
+      "input": "../testdata/valid/minimal.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/valid-minimal.xml",
+        "strip_file": "expected/valid-minimal.stripped.md"
+      }
+    },
+    {
+      "name": "valid-complete",
+      "category": "valid",
+      "input": "../testdata/valid/complete.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K", "9R3C7M5D"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/valid-complete.xml",
+        "strip_file": "expected/valid-complete.stripped.md"
+      }
+    },
+    {
+      "name": "valid-groups",
+      "category": "valid",
+      "input": "../testdata/valid/groups.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["5H8M2W6Y", "6J9N3X7Z"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/valid-groups.xml",
+        "strip_file": "expected/valid-groups.stripped.md"
+      }
+    },
+    {
+      "name": "valid-extensible-attributes",
+      "category": "valid",
+      "input": "../testdata/valid/extensible-attributes.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["2F6J8Q4T"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/valid-extensible-attributes.xml",
+        "strip_file": "expected/valid-extensible-attributes.stripped.md"
+      }
+    },
+    {
+      "name": "valid-minimal-stdin",
+      "category": "valid",
+      "input": "../testdata/valid/minimal.md",
+      "stdin": true,
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": []
+      }
+    },
+    {
+      "name": "mixed-partially-marked",
+      "category": "mixed",
+      "input": "../testdata/mixed/partially-marked.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/mixed-partially-marked.xml",
+        "strip_file": "expected/mixed-partially-marked.stripped.md"
+      }
+    },
+    {
+      "name": "mixed-partially-marked-strict",
+      "category": "mixed",
+      "input": "../testdata/mixed/partially-marked.md",
+      "expect": {
+        "lint_exit": 0,
+        "lint_strict": true,
+        "diagnostic_codes": ["implicit-atom", "implicit-atom", "implicit-atom"]
+      }
+    },
+    {
+      "name": "mixed-complex-markdown",
+      "category": "mixed",
+      "input": "../testdata/mixed/complex-markdown.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K", "9R3C7M5D", "2F6J8Q4T"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/mixed-complex-markdown.xml",
+        "strip_file": "expected/mixed-complex-markdown.stripped.md"
+      }
+    },
+    {
+      "name": "mixed-ordinary-html-comments",
+      "category": "mixed",
+      "input": "../testdata/mixed/ordinary-html-comments.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/mixed-ordinary-html-comments.xml",
+        "strip_file": "expected/mixed-ordinary-html-comments.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-duplicate-id",
+      "category": "malformed",
+      "input": "../testdata/malformed/duplicate-id.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K", "4P8W2H6K"],
+        "diagnostic_codes": ["duplicate-id"],
+        "strip_file": "expected/malformed-duplicate-id.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-missing-id",
+      "category": "malformed",
+      "input": "../testdata/malformed/missing-id.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": [],
+        "diagnostic_codes": ["missing-id"],
+        "strip_file": "expected/malformed-missing-id.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-unclosed-group",
+      "category": "malformed",
+      "input": "../testdata/malformed/unclosed-group.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": ["unclosed-group"],
+        "strip_file": "expected/malformed-unclosed-group.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-inline-directive",
+      "category": "malformed",
+      "input": "../testdata/malformed/inline-directive.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": [],
+        "diagnostic_codes": ["inline-directive"],
+        "strip_file": "expected/malformed-inline-directive.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-invalid-xml",
+      "category": "malformed",
+      "input": "../testdata/malformed/invalid-xml.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": [],
+        "diagnostic_codes": ["invalid-directive"],
+        "strip_file": "expected/malformed-invalid-xml.stripped.md"
+      }
+    }
+  ]
+}

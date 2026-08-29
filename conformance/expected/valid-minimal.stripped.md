@@ -1,0 +1,2 @@
+
+A minimal Atomdown document.
