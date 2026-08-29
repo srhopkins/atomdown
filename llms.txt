@@ -23,6 +23,8 @@ Editing rules:
 6. Keep group markers balanced. Atomdown Core 1 does not permit nested groups.
 7. Run `atomdown lint FILE` after you edit a document.
 
+Default lint permits implicit atoms so a document can mix marked and unmarked blocks. Use `atomdown lint --strict FILE` to report implicit atoms.
+
 ## Standard
 
 - [Atomdown Core 1](SPEC.md): Normative syntax, identity, extension, and conformance rules.
@@ -44,8 +46,11 @@ atomdown tokens FILE
 atomdown lint --json FILE
 atomdown xml FILE
 atomdown strip FILE
+atomdown materialize FILE
 atomdown id
 ```
+
+`atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom. Use `atomdown materialize -w FILE` to update the file in place.
 
 ## Optional
 

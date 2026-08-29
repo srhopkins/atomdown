@@ -70,6 +70,8 @@ The file `schema/atomdown-1.xsd` defines this model. The schema validates the Co
 
 The Atomdown linter validates block association, source order, group balance, and ID rules.
 
+Default lint permits implicit atoms because mixed documents support partial adoption. Use `lint --strict` to report each implicit atom.
+
 When the source has no atomdown document marker, the normalized model assumes version 1 and lists only explicit atoms and groups.
 
 ## Conformance

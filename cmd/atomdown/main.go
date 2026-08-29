@@ -38,6 +38,8 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 		return runXML(arguments[1:], stdout)
 	case "strip":
 		return runStrip(arguments[1:], stdout)
+	case "materialize":
+		return runMaterialize(arguments[1:], stdout)
 	case "id":
 		return runID(arguments[1:], stdout)
 	case "help", "-h", "--help":
@@ -86,6 +88,7 @@ func runParse(arguments []string, output io.Writer) error {
 func runLint(arguments []string, output io.Writer) error {
 	flags := flag.NewFlagSet("lint", flag.ContinueOnError)
 	jsonOutput := flags.Bool("json", false, "emit JSON diagnostics")
+	strict := flags.Bool("strict", false, "report implicit atoms")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -94,16 +97,20 @@ func runLint(arguments []string, output io.Writer) error {
 		return err
 	}
 	document := atomdown.Parse(source)
+	diagnostics := document.Diagnostics
+	if !*strict {
+		diagnostics = withoutImplicitAtomWarnings(diagnostics)
+	}
 	if *jsonOutput {
 		encoder := json.NewEncoder(output)
 		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(document.Diagnostics); err != nil {
+		if err := encoder.Encode(diagnostics); err != nil {
 			return err
 		}
-	} else if len(document.Diagnostics) == 0 {
+	} else if len(diagnostics) == 0 {
 		fmt.Fprintln(output, "ok")
 	} else {
-		for _, diagnostic := range document.Diagnostics {
+		for _, diagnostic := range diagnostics {
 			fmt.Fprintf(output, "%s:%d:%d: %s %s: %s\n", inputName(flags.Args()), diagnostic.Position.Line, diagnostic.Position.Column, diagnostic.Severity, diagnostic.Code, diagnostic.Message)
 		}
 	}
@@ -111,6 +118,16 @@ func runLint(arguments []string, output io.Writer) error {
 		return exitError{code: 1}
 	}
 	return nil
+}
+
+func withoutImplicitAtomWarnings(diagnostics []atomdown.Diagnostic) []atomdown.Diagnostic {
+	filtered := make([]atomdown.Diagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code != "implicit-atom" {
+			filtered = append(filtered, diagnostic)
+		}
+	}
+	return filtered
 }
 
 func runXML(arguments []string, output io.Writer) error {
@@ -143,6 +160,34 @@ func runStrip(arguments []string, output io.Writer) error {
 	}
 	_, err = output.Write(atomdown.Strip(source))
 	return err
+}
+
+func runMaterialize(arguments []string, output io.Writer) error {
+	flags := flag.NewFlagSet("materialize", flag.ContinueOnError)
+	write := flags.Bool("w", false, "write result in place")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
+	if *write && (len(flags.Args()) != 1 || flags.Args()[0] == "-") {
+		return errors.New("materialize -w requires one file")
+	}
+	source, err := readInput(flags.Args())
+	if err != nil {
+		return err
+	}
+	result, err := atomdown.Materialize(source)
+	if err != nil {
+		return err
+	}
+	if !*write {
+		_, err = output.Write(result)
+		return err
+	}
+	info, err := os.Stat(flags.Args()[0])
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(flags.Args()[0], result, info.Mode().Perm())
 }
 
 func runID(arguments []string, output io.Writer) error {
@@ -182,7 +227,7 @@ func inputName(arguments []string) string {
 }
 
 func printUsage(output io.Writer) {
-	fmt.Fprintln(output, "Usage: atomdown <parse|tokens|lint|xml|strip|id> [options] [file|-]")
+	fmt.Fprintln(output, "Usage: atomdown <parse|tokens|lint|xml|strip|materialize|id> [options] [file|-]")
 }
 
 type exitError struct{ code int }

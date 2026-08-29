@@ -57,16 +57,19 @@ go run ./cmd/atomdown parse testdata/example.md
 go run ./cmd/atomdown tokens testdata/example.md
 go run ./cmd/atomdown xml testdata/example.md
 go run ./cmd/atomdown strip testdata/example.md
+go run ./cmd/atomdown materialize testdata/example.md
 go run ./cmd/atomdown id
 ```
 
 Each file command accepts one file. Use `-` or omit the file to read standard input.
 
 - `lint` checks syntax, IDs, block associations, and groups.
+- `lint --strict` also reports unmarked top-level blocks. Default lint permits mixed documents so teams can adopt Atomdown in stages.
 - `parse` writes the semantic document model as JSON.
 - `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.
+- `materialize` adds a new atom marker before each unmarked top-level block. Use `materialize -w FILE` to update the file in place.
 - `id` creates an eight-character Crockford Base32 ID.
 
 After the first tagged release, install the CLI with:
