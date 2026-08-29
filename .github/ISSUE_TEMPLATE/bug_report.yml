@@ -1,0 +1,62 @@
+name: Bug report
+description: Report incorrect parsing, output, validation, or documentation.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Provide the smallest example that shows the problem.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Parser
+        - Linter
+        - Token or Markdown output
+        - XML or XSD
+        - CLI
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input
+      description: Paste the smallest Markdown document that shows the problem.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the command, output, or diagnostic.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Atomdown version or commit
+      placeholder: v0.1.0 or a commit hash
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true

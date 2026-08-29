@@ -1,20 +1,30 @@
 # Contributing to Atomdown
 
-Atomdown must remain small and compatible with standard Markdown and XML tools.
+Atomdown accepts focused bug fixes, documentation changes, tests, and proposals.
 
-## Core proposals
+## Start with an issue
 
-Read the design requirements in `SPEC.md` before you propose a core feature.
+Choose one GitHub issue form:
 
-Put a feature in an extension unless every Atomdown reader needs the feature. Open an issue before you change syntax or the schema.
+- **Bug report** for incorrect parsing, output, validation, or documentation.
+- **Proposal** for new behavior, syntax, or extension support.
 
-In the issue, include:
+Search existing issues before you open a new issue. Include a small example that another person or agent can reproduce.
 
-- The use case.
+You can submit a small documentation correction without an issue.
+
+## Keep Core small
+
+Read `SPEC.md` before you propose a Core change.
+
+Put a feature in an extension unless every Atomdown reader needs the feature. A Core proposal must explain:
+
+- The problem.
 - The smallest required primitive.
-- The effect on existing Markdown documents.
+- Why an extension cannot solve the problem.
+- The effect on existing documents.
 
-## Development procedure
+## Make a change
 
 1. Make one focused change.
 2. Add or update a fixture in `testdata/`.
@@ -22,8 +32,12 @@ In the issue, include:
 4. Run `go vet ./...`.
 5. Run `CGO_ENABLED=0 go build ./cmd/atomdown`.
 
-Golden files are public compatibility examples. Change a golden file only when the output change is intentional.
+Change a golden file only when the output change is intentional.
 
-## Pull requests
+## Open a pull request
 
-Identify the type of change: Core, extension point, Go implementation, or documentation. Describe all compatibility and migration effects.
+Link the issue when one exists. Describe the change and its compatibility effect.
+
+State whether the pull request changes Core, an extension point, the Go implementation, tests, or documentation.
+
+AI agents must follow `AGENTS.md` and the same contribution process.

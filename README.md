@@ -99,4 +99,4 @@ Atomdown does not use Go's runtime `plugin` package. This choice keeps the libra
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing Atomdown Core. Coding agents must also read [`AGENTS.md`](AGENTS.md).
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md), then open a Bug report or Proposal. Coding agents must also read [`AGENTS.md`](AGENTS.md).

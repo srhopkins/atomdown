@@ -6,6 +6,8 @@ Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown.
 
 Read `SPEC.md` before you change parser behavior. Read `testdata/README.md` before you change fixtures or golden files.
 
+Read `CONTRIBUTING.md` before you start a public change. Use the Bug report or Proposal issue form when an issue is required.
+
 ## Build and test
 
 - Run `go test ./...`.

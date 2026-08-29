@@ -1,0 +1,58 @@
+name: Proposal
+description: Propose new behavior, syntax, or extension support.
+title: "[Proposal]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Atomdown keeps Core small. Propose the smallest change that solves the problem.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete problem or workflow.
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: Show the smallest input and desired result.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: primitive
+    attributes:
+      label: Smallest change
+      description: Describe the smallest new primitive or behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extension
+    attributes:
+      label: Extension option
+      description: Explain whether an extension can solve the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility effect
+      description: Describe the effect on existing Markdown documents and tools.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this proposal.
+          required: true
