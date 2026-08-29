@@ -36,7 +36,9 @@ An `atom-group` contains the explicit atoms between its markers. Atomdown Core 1
 
 ## Identity
 
-Each explicit atom and atom group requires a unique eight-character Crockford Base32 `id`.
+Each explicit atom and atom group requires an eight-character Crockford Base32 `id`.
+Use the uppercase Crockford Base32 alphabet only.
+IDs must be unique within a document.
 
 Preserve the ID when you move an item. Generate a new ID when you copy an item.
 
@@ -67,6 +69,8 @@ The Markdown source is not an XML document. A parser extracts Atomdown directive
 The file `schema/atomdown-1.xsd` defines this model. The schema validates the Core shape and extension attributes.
 
 The Atomdown linter validates block association, source order, group balance, and ID rules.
+
+When the source has no atomdown document marker, the normalized model assumes version 1 and lists only explicit atoms and groups.
 
 ## Conformance
 
