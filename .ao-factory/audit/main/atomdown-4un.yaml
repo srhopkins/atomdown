@@ -1,0 +1,8 @@
+bead: atomdown-4un
+namespace: main
+search_query: "Directive scanner must respect Markdown context code blocks"
+candidates: []
+associated_issues: none
+duplicate_issues: none
+checked_at: 2026-08-29T02:27:09Z
+written_by: ayo-related-set

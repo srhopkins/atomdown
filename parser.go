@@ -135,6 +135,7 @@ func Parse(source []byte) Document {
 }
 
 func scanDirectives(source []byte, lineStarts []int) ([]directive, []Diagnostic) {
+	codeRanges := markdownCodeRanges(source)
 	var directives []directive
 	var diagnostics []Diagnostic
 	for cursor := 0; cursor < len(source); {
@@ -143,6 +144,10 @@ func scanDirectives(source []byte, lineStarts []int) ([]directive, []Diagnostic)
 			break
 		}
 		start := cursor + relativeStart
+		if rangeContainsOffset(codeRanges, start) {
+			cursor = start + 4
+			continue
+		}
 		relativeEnd := bytes.Index(source[start+4:], []byte("-->"))
 		if relativeEnd < 0 {
 			diagnostics = append(diagnostics, newDiagnostic(
@@ -180,6 +185,34 @@ func scanDirectives(source []byte, lineStarts []int) ([]directive, []Diagnostic)
 		cursor = end
 	}
 	return directives, diagnostics
+}
+
+func markdownCodeRanges(source []byte) []byteRange {
+	markdown := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	root := markdown.Parser().Parse(text.NewReader(source))
+	var ranges []byteRange
+	_ = ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || (node.Kind() != ast.KindFencedCodeBlock && node.Kind() != ast.KindCodeBlock) {
+			return ast.WalkContinue, nil
+		}
+		lines := node.Lines()
+		for index := 0; index < lines.Len(); index++ {
+			line := lines.At(index)
+			ranges = append(ranges, byteRange{start: line.Start, end: line.Stop})
+		}
+		return ast.WalkSkipChildren, nil
+	})
+	sort.Slice(ranges, func(left, right int) bool {
+		return ranges[left].start < ranges[right].start
+	})
+	return ranges
+}
+
+func rangeContainsOffset(ranges []byteRange, offset int) bool {
+	index := sort.Search(len(ranges), func(index int) bool {
+		return ranges[index].end > offset
+	})
+	return index < len(ranges) && ranges[index].start <= offset
 }
 
 func directiveOccupiesLine(source []byte, start, end int) bool {
@@ -268,7 +301,8 @@ func xmlAttributeName(name xml.Name) string {
 	if name.Space == "" {
 		return name.Local
 	}
-	return "{" + name.Space + "}" + name.Local
+	// RawToken leaves the source prefix in Space (not a resolved URI).
+	return name.Space + ":" + name.Local
 }
 
 func scanMarkdownBlocks(source []byte, directives []directive) []markdownBlock {

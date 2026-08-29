@@ -168,6 +168,43 @@ func TestStripRemovesWholeDirectiveLine(t *testing.T) {
 	}
 }
 
+func TestDirectiveInsideFencedCodeIsMarkdown(t *testing.T) {
+	source := []byte("```markdown\n<!-- <atom id=\"4P8W2H6K\"/> -->\n```\n\n<!-- <atom id=\"9R3C7M5D\"/> -->\n\nParagraph.\n")
+
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	if len(document.Atoms) != 2 {
+		t.Fatalf("atoms = %#v, want fenced code plus marked paragraph", document.Atoms)
+	}
+	if !document.Atoms[0].Implicit || document.Atoms[1].ID != "9R3C7M5D" {
+		t.Fatalf("atoms = %#v", document.Atoms)
+	}
+
+	wantStripped := "```markdown\n<!-- <atom id=\"4P8W2H6K\"/> -->\n```\n\n\nParagraph.\n"
+	if got := string(Strip(source)); got != wantStripped {
+		t.Fatalf("Strip() = %q, want %q", got, wantStripped)
+	}
+
+	stream := Tokenize(source)
+	for _, token := range stream.Tokens {
+		if token.Kind == TokenDirective && token.Directive.ID == "4P8W2H6K" {
+			t.Fatalf("fenced code became a directive token: %#v", token)
+		}
+	}
+}
+
+func TestDirectiveInsideBlockquoteRemainsInlineError(t *testing.T) {
+	document := Parse([]byte("> <!-- <atom id=\"4P8W2H6K\"/> -->\n"))
+	for _, diagnostic := range document.Diagnostics {
+		if diagnostic.Code == "inline-directive" {
+			return
+		}
+	}
+	t.Fatalf("diagnostics = %#v, want inline-directive", document.Diagnostics)
+}
+
 func TestProcessorExtension(t *testing.T) {
 	extension := ExtensionFunc{
 		ExtensionName: "test-extension",
