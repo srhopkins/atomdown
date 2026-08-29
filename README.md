@@ -62,6 +62,7 @@ Run the CLI from the repository:
 ```bash
 go run ./cmd/atomdown lint testdata/example.md
 go run ./cmd/atomdown parse testdata/example.md
+go run ./cmd/atomdown emit document.json
 go run ./cmd/atomdown tokens testdata/example.md
 go run ./cmd/atomdown xml testdata/example.md
 go run ./cmd/atomdown strip testdata/example.md
@@ -74,6 +75,7 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `lint` checks syntax, IDs, block associations, and groups.
 - `lint --strict` also reports unmarked top-level blocks. Default lint permits mixed documents so teams can adopt Atomdown in stages.
 - `parse` writes the semantic document model as JSON.
+- `emit` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
 - `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.

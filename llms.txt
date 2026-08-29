@@ -42,6 +42,7 @@ Machine-readable commands:
 
 ```text
 atomdown parse FILE
+atomdown emit FILE
 atomdown tokens FILE
 atomdown lint --json FILE
 atomdown xml FILE
@@ -49,6 +50,8 @@ atomdown strip FILE
 atomdown materialize FILE
 atomdown id
 ```
+
+`atomdown emit FILE` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
 
 `atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom. Use `atomdown materialize -w FILE` to update the file in place.
 

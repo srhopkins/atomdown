@@ -30,6 +30,8 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	switch arguments[0] {
 	case "parse":
 		return runParse(arguments[1:], stdout)
+	case "emit":
+		return runEmit(arguments[1:], stdout)
 	case "tokens":
 		return runTokens(arguments[1:], stdout)
 	case "lint":
@@ -48,6 +50,42 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	default:
 		return fmt.Errorf("unknown command %q", arguments[0])
 	}
+}
+
+func runEmit(arguments []string, output io.Writer) error {
+	if len(arguments) > 1 {
+		return errors.New("emit accepts at most one file")
+	}
+	source, err := readInput(arguments)
+	if err != nil {
+		return err
+	}
+
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal(source, &shape); err != nil {
+		return fmt.Errorf("invalid document JSON: %w", err)
+	}
+	if shape == nil {
+		return errors.New("invalid document JSON: expected an object")
+	}
+	atoms, exists := shape["atoms"]
+	if !exists {
+		return errors.New(`invalid document JSON: missing "atoms"`)
+	}
+	if string(atoms) == "null" {
+		return errors.New(`invalid document JSON: "atoms" must be an array`)
+	}
+
+	var document atomdown.Document
+	if err := json.Unmarshal(source, &document); err != nil {
+		return fmt.Errorf("invalid document JSON: %w", err)
+	}
+	result, err := atomdown.Emit(document)
+	if err != nil {
+		return err
+	}
+	_, err = output.Write(result)
+	return err
 }
 
 func runTokens(arguments []string, output io.Writer) error {
@@ -227,7 +265,7 @@ func inputName(arguments []string) string {
 }
 
 func printUsage(output io.Writer) {
-	fmt.Fprintln(output, "Usage: atomdown <parse|tokens|lint|xml|strip|materialize|id> [options] [file|-]")
+	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|id> [options] [file|-]")
 }
 
 type exitError struct{ code int }
