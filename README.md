@@ -47,6 +47,14 @@ Atomdown Core 1 is an early specification. Use the current syntax and conformanc
 
 The implementation is a pure-Go library and command-line interface (CLI). It uses `encoding/xml` and the pure-Go goldmark parser. It does not use CGO.
 
+## Install
+
+```bash
+go install github.com/srhopkins/atomdown/cmd/atomdown@latest
+```
+
+Prebuilt binaries for macOS and Linux are on the [releases page](https://github.com/srhopkins/atomdown/releases).
+
 ## CLI
 
 Run the CLI from the repository:
@@ -71,12 +79,6 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `strip` removes Atomdown directives and writes plain Markdown.
 - `materialize` adds a new atom marker before each unmarked top-level block. Use `materialize -w FILE` to update the file in place.
 - `id` creates an eight-character Crockford Base32 ID.
-
-After the first tagged release, install the CLI with:
-
-```bash
-go install github.com/srhopkins/atomdown/cmd/atomdown@latest
-```
 
 ## Go library
 
@@ -105,6 +107,7 @@ Atomdown does not use Go's runtime `plugin` package. This choice keeps the libra
 - [`SPEC.md`](SPEC.md) defines Atomdown Core 1.
 - [`schema/atomdown-1.xsd`](schema/atomdown-1.xsd) defines the normalized XML model.
 - [`testdata/`](testdata/) provides valid, mixed, malformed, and exact golden files.
+- [`conformance/`](conformance/) provides a language-neutral test suite. Second implementations run it without Go.
 - [`llms.txt`](llms.txt) gives AI agents a short guide to the repository.
 
 ## Contributing
