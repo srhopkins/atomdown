@@ -48,7 +48,7 @@ Core defines the `version`, `id`, and `slug` attributes. A directive can contain
 
 Core tools must preserve unknown attributes. Core tools must not assign meaning to unknown attributes or run their contents.
 
-Attribute names are case-sensitive. Use lowercase kebab-case with a domain prefix, such as `audit-approved-by`.
+Attribute names are case-sensitive. Use lowercase kebab-case with a prefix that the owning application defines, such as `acme-approved-by`. The `acme-` examples in this repository are placeholders, not Core vocabulary.
 
 An extension can define attribute meaning, validation, editor decoration, or agent behavior. An extension must not change Core elements or Core attributes.
 

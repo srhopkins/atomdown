@@ -2,14 +2,14 @@
 
 Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown. Atomdown documents remain valid CommonMark.
 
-Use Atomdown when people and AI agents need to address, review, or audit individual Markdown blocks. Visible Markdown remains the source of truth.
+Use Atomdown when people and AI agents need to address and review individual Markdown blocks. Visible Markdown remains the source of truth.
 
 Atomdown uses XML-shaped directives inside HTML comments:
 
 ```markdown
 <!-- <atomdown version="1"/> -->
 
-<!-- <atom id="4P8W2H6K" audit-approved-by="steve"/> -->
+<!-- <atom id="4P8W2H6K" slug="launch-claim"/> -->
 
 The product launched in March.
 ```
@@ -24,9 +24,16 @@ Atomdown supports:
 
 - Stable Markdown block IDs for links, comments, and review workflows.
 - Ordered groups of addressable blocks.
-- Provenance and approval data for AI-generated writing.
 - Application metadata that core tools preserve but do not interpret.
 - Lossless token output for editors and embedded applications.
+
+Core defines only `version`, `id`, and `slug`. Applications extend Atomdown with their own XML attributes:
+
+```markdown
+<!-- <atom id="4P8W2H6K" acme-owner="research"/> -->
+```
+
+The `acme-owner` attribute is an application-defined example. It is not part of Atomdown Core. Core tools preserve it and do not interpret it.
 
 Atomdown Core 1 is an early specification. Use the current syntax and conformance corpus for experiments and review.
 

@@ -19,6 +19,4 @@ Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown.
 - `block-ids`
 - `llm`
 - `ai-agents`
-- `provenance`
-- `content-audit`
 - `static-analysis`

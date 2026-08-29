@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<atomdown version="1" audit-profile="draft">
+<atomdown version="1" acme-profile="draft">
   <atom-group id="7K3M9X2D" slug="research-findings">
-    <atom id="4P8W2H6K" audit-approved-by="steve" audit-status="approved"></atom>
-    <atom id="9R3C7M5D" audit-status="needs-source"></atom>
+    <atom id="4P8W2H6K" acme-owner="research" acme-status="approved"></atom>
+    <atom id="9R3C7M5D" acme-status="needs-source"></atom>
   </atom-group>
 </atomdown>

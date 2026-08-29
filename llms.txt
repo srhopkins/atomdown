@@ -2,7 +2,7 @@
 
 > Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown. Documents remain valid CommonMark for people, tools, and AI agents.
 
-Use Atomdown for block references, provenance, AI-writing audits, and review workflows. Visible Markdown remains the source of truth.
+Use Atomdown for block references, review workflows, and application-defined block metadata. Visible Markdown remains the source of truth.
 
 Core syntax:
 

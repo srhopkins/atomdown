@@ -9,19 +9,19 @@
           "column": 1
         },
         "end": {
-          "offset": 54,
+          "offset": 53,
           "line": 1,
-          "column": 55
+          "column": 54
         }
       },
-      "raw": "\u003c!-- \u003catomdown version=\"1\" audit-profile=\"draft\"/\u003e --\u003e",
+      "raw": "\u003c!-- \u003catomdown version=\"1\" acme-profile=\"draft\"/\u003e --\u003e",
       "directive": {
         "element": "atomdown",
         "operation": "empty",
         "version": "1",
         "attributes": [
           {
-            "name": "audit-profile",
+            "name": "acme-profile",
             "value": "draft"
           }
         ]
@@ -31,12 +31,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 54,
+          "offset": 53,
           "line": 1,
-          "column": 55
+          "column": 54
         },
         "end": {
-          "offset": 56,
+          "offset": 55,
           "line": 3,
           "column": 1
         }
@@ -47,12 +47,12 @@
       "kind": "atomdown-directive",
       "range": {
         "start": {
-          "offset": 56,
+          "offset": 55,
           "line": 3,
           "column": 1
         },
         "end": {
-          "offset": 116,
+          "offset": 115,
           "line": 3,
           "column": 61
         }
@@ -69,12 +69,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 116,
+          "offset": 115,
           "line": 3,
           "column": 61
         },
         "end": {
-          "offset": 118,
+          "offset": 117,
           "line": 5,
           "column": 1
         }
@@ -85,29 +85,29 @@
       "kind": "atomdown-directive",
       "range": {
         "start": {
-          "offset": 118,
+          "offset": 117,
           "line": 5,
           "column": 1
         },
         "end": {
-          "offset": 198,
+          "offset": 192,
           "line": 5,
-          "column": 81
+          "column": 76
         }
       },
-      "raw": "\u003c!-- \u003catom id=\"4P8W2H6K\" audit-status=\"approved\" audit-approved-by=\"steve\"/\u003e --\u003e",
+      "raw": "\u003c!-- \u003catom id=\"4P8W2H6K\" acme-status=\"approved\" acme-owner=\"research\"/\u003e --\u003e",
       "directive": {
         "element": "atom",
         "operation": "empty",
         "id": "4P8W2H6K",
         "attributes": [
           {
-            "name": "audit-status",
+            "name": "acme-status",
             "value": "approved"
           },
           {
-            "name": "audit-approved-by",
-            "value": "steve"
+            "name": "acme-owner",
+            "value": "research"
           }
         ]
       }
@@ -116,12 +116,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 198,
+          "offset": 192,
           "line": 5,
-          "column": 81
+          "column": 76
         },
         "end": {
-          "offset": 200,
+          "offset": 194,
           "line": 7,
           "column": 1
         }
@@ -132,12 +132,12 @@
       "kind": "markdown",
       "range": {
         "start": {
-          "offset": 200,
+          "offset": 194,
           "line": 7,
           "column": 1
         },
         "end": {
-          "offset": 230,
+          "offset": 224,
           "line": 7,
           "column": 31
         }
@@ -149,12 +149,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 230,
+          "offset": 224,
           "line": 7,
           "column": 31
         },
         "end": {
-          "offset": 232,
+          "offset": 226,
           "line": 9,
           "column": 1
         }
@@ -165,24 +165,24 @@
       "kind": "atomdown-directive",
       "range": {
         "start": {
-          "offset": 232,
+          "offset": 226,
           "line": 9,
           "column": 1
         },
         "end": {
-          "offset": 290,
+          "offset": 283,
           "line": 9,
-          "column": 59
+          "column": 58
         }
       },
-      "raw": "\u003c!-- \u003catom id=\"9R3C7M5D\" audit-status=\"needs-source\"/\u003e --\u003e",
+      "raw": "\u003c!-- \u003catom id=\"9R3C7M5D\" acme-status=\"needs-source\"/\u003e --\u003e",
       "directive": {
         "element": "atom",
         "operation": "empty",
         "id": "9R3C7M5D",
         "attributes": [
           {
-            "name": "audit-status",
+            "name": "acme-status",
             "value": "needs-source"
           }
         ]
@@ -192,12 +192,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 290,
+          "offset": 283,
           "line": 9,
-          "column": 59
+          "column": 58
         },
         "end": {
-          "offset": 292,
+          "offset": 285,
           "line": 11,
           "column": 1
         }
@@ -208,12 +208,12 @@
       "kind": "markdown",
       "range": {
         "start": {
-          "offset": 292,
+          "offset": 285,
           "line": 11,
           "column": 1
         },
         "end": {
-          "offset": 337,
+          "offset": 330,
           "line": 11,
           "column": 46
         }
@@ -225,12 +225,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 337,
+          "offset": 330,
           "line": 11,
           "column": 46
         },
         "end": {
-          "offset": 339,
+          "offset": 332,
           "line": 13,
           "column": 1
         }
@@ -241,12 +241,12 @@
       "kind": "atomdown-directive",
       "range": {
         "start": {
-          "offset": 339,
+          "offset": 332,
           "line": 13,
           "column": 1
         },
         "end": {
-          "offset": 361,
+          "offset": 354,
           "line": 13,
           "column": 23
         }
@@ -261,12 +261,12 @@
       "kind": "whitespace",
       "range": {
         "start": {
-          "offset": 361,
+          "offset": 354,
           "line": 13,
           "column": 23
         },
         "end": {
-          "offset": 362,
+          "offset": 355,
           "line": 13,
           "column": 24
         }

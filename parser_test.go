@@ -7,11 +7,11 @@ import (
 )
 
 func TestParseAtomsAndGroup(t *testing.T) {
-	source := []byte(`<!-- <atomdown version="1" audit-profile="draft"/> -->
+	source := []byte(`<!-- <atomdown version="1" acme-profile="draft"/> -->
 
 <!-- <atom-group id="7K3M9X2D" slug="findings"> -->
 
-<!-- <atom id="4P8W2H6K" audit-approved-by="steve"/> -->
+<!-- <atom id="4P8W2H6K" acme-approved-by="reviewer"/> -->
 
 First finding.
 
@@ -38,7 +38,7 @@ First finding.
 	if document.Atoms[0].GroupID != "7K3M9X2D" {
 		t.Fatalf("group = %q", document.Atoms[0].GroupID)
 	}
-	if got := document.Atoms[0].Attributes[0]; got.Name != "audit-approved-by" || got.Value != "steve" {
+	if got := document.Atoms[0].Attributes[0]; got.Name != "acme-approved-by" || got.Value != "reviewer" {
 		t.Fatalf("attribute = %#v", got)
 	}
 }
@@ -94,7 +94,7 @@ func TestInlineDirectiveIsRejected(t *testing.T) {
 }
 
 func TestNormalizedXML(t *testing.T) {
-	source := []byte(`<!-- <atom id="4P8W2H6K" audit-status="approved"/> -->
+	source := []byte(`<!-- <atom id="4P8W2H6K" acme-status="approved"/> -->
 
 First.
 `)
@@ -104,7 +104,7 @@ First.
 		t.Fatal(err)
 	}
 	value := string(normalized)
-	for _, expected := range []string{`<atomdown version="1">`, `id="4P8W2H6K"`, `audit-status="approved"`} {
+	for _, expected := range []string{`<atomdown version="1">`, `id="4P8W2H6K"`, `acme-status="approved"`} {
 		if !strings.Contains(value, expected) {
 			t.Fatalf("normalized XML missing %q:\n%s", expected, value)
 		}
@@ -122,7 +122,7 @@ func TestNewID(t *testing.T) {
 }
 
 func TestTokenizeIsLossless(t *testing.T) {
-	source := []byte(`<!-- <atom id="4P8W2H6K" audit-status="approved"/> -->
+	source := []byte(`<!-- <atom id="4P8W2H6K" acme-status="approved"/> -->
 
 # Heading
 
@@ -170,10 +170,10 @@ func TestStripRemovesWholeDirectiveLine(t *testing.T) {
 
 func TestProcessorExtension(t *testing.T) {
 	extension := ExtensionFunc{
-		ExtensionName: "test-audit",
+		ExtensionName: "test-extension",
 		TransformFunc: func(_ context.Context, _ []byte, document *Document) error {
 			document.Diagnostics = append(document.Diagnostics, Diagnostic{
-				Code: "audit-test", Severity: SeverityWarning, Message: "extension ran",
+				Code: "extension-test", Severity: SeverityWarning, Message: "extension ran",
 			})
 			return nil
 		},
@@ -184,7 +184,7 @@ func TestProcessorExtension(t *testing.T) {
 	}
 	found := false
 	for _, diagnostic := range document.Diagnostics {
-		if diagnostic.Code == "audit-test" {
+		if diagnostic.Code == "extension-test" {
 			found = true
 		}
 	}
