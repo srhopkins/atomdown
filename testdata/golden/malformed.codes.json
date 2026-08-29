@@ -1,0 +1,7 @@
+{
+  "duplicate-id.md": ["duplicate-id"],
+  "inline-directive.md": ["inline-directive", "implicit-atom"],
+  "invalid-xml.md": ["invalid-directive", "implicit-atom", "implicit-atom"],
+  "missing-id.md": ["missing-id"],
+  "unclosed-group.md": ["unclosed-group"]
+}

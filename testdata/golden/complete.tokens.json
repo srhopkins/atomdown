@@ -1,0 +1,277 @@
+{
+  "tokens": [
+    {
+      "kind": "atomdown-directive",
+      "range": {
+        "start": {
+          "offset": 0,
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "offset": 54,
+          "line": 1,
+          "column": 55
+        }
+      },
+      "raw": "\u003c!-- \u003catomdown version=\"1\" audit-profile=\"draft\"/\u003e --\u003e",
+      "directive": {
+        "element": "atomdown",
+        "operation": "empty",
+        "version": "1",
+        "attributes": [
+          {
+            "name": "audit-profile",
+            "value": "draft"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 54,
+          "line": 1,
+          "column": 55
+        },
+        "end": {
+          "offset": 56,
+          "line": 3,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "atomdown-directive",
+      "range": {
+        "start": {
+          "offset": 56,
+          "line": 3,
+          "column": 1
+        },
+        "end": {
+          "offset": 116,
+          "line": 3,
+          "column": 61
+        }
+      },
+      "raw": "\u003c!-- \u003catom-group id=\"7K3M9X2D\" slug=\"research-findings\"\u003e --\u003e",
+      "directive": {
+        "element": "atom-group",
+        "operation": "open",
+        "id": "7K3M9X2D",
+        "slug": "research-findings"
+      }
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 116,
+          "line": 3,
+          "column": 61
+        },
+        "end": {
+          "offset": 118,
+          "line": 5,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "atomdown-directive",
+      "range": {
+        "start": {
+          "offset": 118,
+          "line": 5,
+          "column": 1
+        },
+        "end": {
+          "offset": 198,
+          "line": 5,
+          "column": 81
+        }
+      },
+      "raw": "\u003c!-- \u003catom id=\"4P8W2H6K\" audit-status=\"approved\" audit-approved-by=\"steve\"/\u003e --\u003e",
+      "directive": {
+        "element": "atom",
+        "operation": "empty",
+        "id": "4P8W2H6K",
+        "attributes": [
+          {
+            "name": "audit-status",
+            "value": "approved"
+          },
+          {
+            "name": "audit-approved-by",
+            "value": "steve"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 198,
+          "line": 5,
+          "column": 81
+        },
+        "end": {
+          "offset": 200,
+          "line": 7,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "markdown",
+      "range": {
+        "start": {
+          "offset": 200,
+          "line": 7,
+          "column": 1
+        },
+        "end": {
+          "offset": 230,
+          "line": 7,
+          "column": 31
+        }
+      },
+      "raw": "The product launched in March.",
+      "nodeType": "Paragraph"
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 230,
+          "line": 7,
+          "column": 31
+        },
+        "end": {
+          "offset": 232,
+          "line": 9,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "atomdown-directive",
+      "range": {
+        "start": {
+          "offset": 232,
+          "line": 9,
+          "column": 1
+        },
+        "end": {
+          "offset": 290,
+          "line": 9,
+          "column": 59
+        }
+      },
+      "raw": "\u003c!-- \u003catom id=\"9R3C7M5D\" audit-status=\"needs-source\"/\u003e --\u003e",
+      "directive": {
+        "element": "atom",
+        "operation": "empty",
+        "id": "9R3C7M5D",
+        "attributes": [
+          {
+            "name": "audit-status",
+            "value": "needs-source"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 290,
+          "line": 9,
+          "column": 59
+        },
+        "end": {
+          "offset": 292,
+          "line": 11,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "markdown",
+      "range": {
+        "start": {
+          "offset": 292,
+          "line": 11,
+          "column": 1
+        },
+        "end": {
+          "offset": 337,
+          "line": 11,
+          "column": 46
+        }
+      },
+      "raw": "The regional rollout continued through April.",
+      "nodeType": "Paragraph"
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 337,
+          "line": 11,
+          "column": 46
+        },
+        "end": {
+          "offset": 339,
+          "line": 13,
+          "column": 1
+        }
+      },
+      "raw": "\n\n"
+    },
+    {
+      "kind": "atomdown-directive",
+      "range": {
+        "start": {
+          "offset": 339,
+          "line": 13,
+          "column": 1
+        },
+        "end": {
+          "offset": 361,
+          "line": 13,
+          "column": 23
+        }
+      },
+      "raw": "\u003c!-- \u003c/atom-group\u003e --\u003e",
+      "directive": {
+        "element": "atom-group",
+        "operation": "close"
+      }
+    },
+    {
+      "kind": "whitespace",
+      "range": {
+        "start": {
+          "offset": 361,
+          "line": 13,
+          "column": 23
+        },
+        "end": {
+          "offset": 362,
+          "line": 13,
+          "column": 24
+        }
+      },
+      "raw": "\n"
+    }
+  ]
+}

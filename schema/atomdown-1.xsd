@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified"
+  version="1.0">
+
+  <xs:simpleType name="AtomID">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9A-HJKMNP-TV-Z]{8}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="AtomType">
+    <xs:attribute name="id" type="AtomID" use="required"/>
+    <xs:attribute name="slug" type="xs:string" use="optional"/>
+    <xs:anyAttribute namespace="##any" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:complexType name="AtomGroupType">
+    <xs:sequence>
+      <xs:element name="atom" type="AtomType" minOccurs="1" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="AtomID" use="required"/>
+    <xs:attribute name="slug" type="xs:string" use="optional"/>
+    <xs:anyAttribute namespace="##any" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="atomdown">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="atom" type="AtomType"/>
+        <xs:element name="atom-group" type="AtomGroupType"/>
+      </xs:choice>
+      <xs:attribute name="version" use="required" fixed="1"/>
+      <xs:anyAttribute namespace="##any" processContents="lax"/>
+    </xs:complexType>
+    <xs:key name="uniqueIDs">
+      <xs:selector xpath=".//atom | .//atom-group"/>
+      <xs:field xpath="@id"/>
+    </xs:key>
+  </xs:element>
+</xs:schema>
