@@ -1,23 +1,29 @@
 # Contributing to Atomdown
 
-Atomdown aims to remain small, familiar, and compatible with ordinary Markdown and XML tools.
+Atomdown must remain small and compatible with standard Markdown and XML tools.
 
-## Before proposing a core feature
+## Core proposals
 
-Check the design requirements in `SPEC.md`. Features belong in an extension when they do not require every Atomdown reader to agree on their meaning.
+Read the design requirements in `SPEC.md` before you propose a core feature.
 
-Open an issue before making a breaking syntax or schema change. Describe the use case, the smallest required primitive, and the effect on existing Markdown files.
+Put a feature in an extension unless every Atomdown reader needs the feature. Open an issue before you change syntax or the schema.
 
-## Development
+In the issue, include:
 
-1. Make the smallest focused change.
+- The use case.
+- The smallest required primitive.
+- The effect on existing Markdown documents.
+
+## Development procedure
+
+1. Make one focused change.
 2. Add or update a fixture in `testdata/`.
 3. Run `go test ./...`.
 4. Run `go vet ./...`.
 5. Run `CGO_ENABLED=0 go build ./cmd/atomdown`.
 
-Golden files are public compatibility examples. Update them only when the output change is intentional.
+Golden files are public compatibility examples. Change a golden file only when the output change is intentional.
 
 ## Pull requests
 
-State whether the change affects Atomdown Core, an extension point, the Go implementation, or documentation only. Include any compatibility or migration effect.
+Identify the type of change: Core, extension point, Go implementation, or documentation. Describe all compatibility and migration effects.

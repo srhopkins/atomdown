@@ -1,33 +1,10 @@
 # Atomdown
 
-Atomdown is a backward-compatible block identity and metadata standard for Markdown. It adds persistent atoms, ordered groups, and extensible XML attributes through invisible HTML comments.
+Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown. Atomdown documents remain valid CommonMark.
 
-Use Atomdown when Markdown must remain readable by every normal Markdown tool while editors, linters, and AI agents need stable block IDs, provenance, review status, or other machine-readable metadata.
+Use Atomdown when people and AI agents need to address, review, or audit individual Markdown blocks. Visible Markdown remains the source of truth.
 
-Atomdown is deliberately familiar:
-
-- The document remains valid CommonMark.
-- Directives use XML 1.0 syntax inside standard HTML comments.
-- The normalized metadata model uses XSD 1.0.
-- Unknown XML attributes provide extensions without changing Core.
-- Core defines only document version, atoms, atom groups, IDs, slugs, ordering, and preservation rules.
-
-This repository contains a pure-Go library and a small command-line tool. It uses Go's standard `encoding/xml` package for directives and the pure-Go goldmark parser for CommonMark structure. It does not use CGO.
-
-## Why Atomdown
-
-Most block editors store a private JSON document. Atomdown keeps Markdown canonical and adds only a small annotation layer. This makes the same file useful as prose, source code, an agent-editable document, and a collection of addressable blocks.
-
-Common uses include:
-
-- Auditing AI-generated claims and recording approval or provenance.
-- Giving Markdown blocks stable IDs for links, comments, and review workflows.
-- Grouping ordered blocks without replacing Markdown with JSON.
-- Adding application-specific metadata that core tools preserve but do not interpret.
-
-Atomdown Core 1 is an early specification. The syntax and conformance corpus are ready for experimentation and review.
-
-## Example
+Atomdown uses XML-shaped directives inside HTML comments:
 
 ```markdown
 <!-- <atomdown version="1"/> -->
@@ -37,7 +14,35 @@ Atomdown Core 1 is an early specification. The syntax and conformance corpus are
 The product launched in March.
 ```
 
-## Commands
+Normal Markdown tools treat each directive as an invisible comment. Atomdown tools read the same directive as block metadata.
+
+## Why Atomdown
+
+Many block editors store documents as application-owned JSON. Atomdown keeps Markdown canonical and adds a small annotation layer.
+
+Atomdown supports:
+
+- Stable Markdown block IDs for links, comments, and review workflows.
+- Ordered groups of addressable blocks.
+- Provenance and approval data for AI-generated writing.
+- Application metadata that core tools preserve but do not interpret.
+- Lossless token output for editors and embedded applications.
+
+Atomdown Core 1 is an early specification. Use the current syntax and conformance corpus for experiments and review.
+
+## Design
+
+- Documents remain valid CommonMark.
+- Directives use XML 1.0 syntax inside HTML comments.
+- The normalized metadata model uses XML Schema Definition (XSD) 1.0.
+- Unknown XML attributes extend Atomdown without changing Core.
+- Core defines identity, grouping, order, and preservation rules.
+
+The implementation is a pure-Go library and command-line interface (CLI). It uses `encoding/xml` and the pure-Go goldmark parser. It does not use CGO.
+
+## CLI
+
+Run the CLI from the repository:
 
 ```bash
 go run ./cmd/atomdown lint testdata/example.md
@@ -48,23 +53,24 @@ go run ./cmd/atomdown strip testdata/example.md
 go run ./cmd/atomdown id
 ```
 
+Each file command accepts one file. Use `-` or omit the file to read standard input.
+
+- `lint` checks syntax, IDs, block associations, and groups.
+- `parse` writes the semantic document model as JSON.
+- `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
+- `xml` writes the normalized XML metadata model.
+- `strip` removes Atomdown directives and writes plain Markdown.
+- `id` creates an eight-character Crockford Base32 ID.
+
 After the first tagged release, install the CLI with:
 
 ```bash
 go install github.com/srhopkins/atomdown/cmd/atomdown@latest
 ```
 
-All file commands accept `-` or no file to read standard input.
+## Go library
 
-The [`testdata`](testdata/) directory is a reusable conformance corpus. It contains valid, mixed, malformed, and exact golden-output documents for this and other Atomdown implementations.
-
-- `parse` returns the semantic Atomdown model as JSON.
-- `tokens` returns a lossless ordered stream of Markdown, whitespace, and Atomdown directives.
-- `strip` returns pure Markdown by removing only recognized Atomdown directives.
-- `xml` returns the normalized XML metadata model.
-- `lint --json` returns machine-readable diagnostics.
-
-## Library
+Parse and validate a document:
 
 ```go
 document := atomdown.Parse(source)
@@ -73,23 +79,24 @@ if document.HasErrors() {
 }
 ```
 
-Embedded applications can register compile-time extensions:
+Register an extension in an embedded application:
 
 ```go
 processor := atomdown.NewProcessor(myExtension)
 document, err := processor.Process(ctx, source)
 ```
 
-Extensions implement `atomdown.Extension`. They run in registration order and can decorate the document or add profile-specific diagnostics. Atomdown does not use Go's runtime `plugin` package, so the library remains portable across platforms and works with `CGO_ENABLED=0`.
+Extensions implement `atomdown.Extension`. Extensions run in registration order and can add metadata or diagnostics.
 
-See `SPEC.md` for Atomdown Core 1 and `schema/atomdown-1.xsd` for the normalized XML validation model.
+Atomdown does not use Go's runtime `plugin` package. This choice keeps the library portable and compatible with `CGO_ENABLED=0`.
 
-For agents and automated discovery, start with `llms.txt`. It points to the normative files and states the safe editing rules in one screen.
+## Standard and tests
 
-## Related search terms
-
-Atomdown addresses block-based Markdown, persistent Markdown block IDs, addressable Markdown, Markdown AST metadata, Markdown provenance, AI writing audits, LLM document review, XML in Markdown comments, and extensible Markdown annotations.
+- [`SPEC.md`](SPEC.md) defines Atomdown Core 1.
+- [`schema/atomdown-1.xsd`](schema/atomdown-1.xsd) defines the normalized XML model.
+- [`testdata/`](testdata/) provides valid, mixed, malformed, and exact golden files.
+- [`llms.txt`](llms.txt) gives AI agents a short guide to the repository.
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing Atomdown Core. Coding agents should also read [`AGENTS.md`](AGENTS.md).
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing Atomdown Core. Coding agents must also read [`AGENTS.md`](AGENTS.md).

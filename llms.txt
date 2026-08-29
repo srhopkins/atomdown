@@ -1,49 +1,53 @@
 # Atomdown
 
-> Atomdown is a backward-compatible block identity and metadata standard for Markdown. It uses XML-shaped directives inside HTML comments, so ordinary Markdown tools remain compatible while agents and applications gain persistent block IDs, groups, and extensible attributes.
+> Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown. Documents remain valid CommonMark for people, tools, and AI agents.
 
-Atomdown is useful for Markdown provenance, AI-writing audits, block-level review, stable references, and application metadata. Visible Markdown remains the source of truth.
+Use Atomdown for block references, provenance, AI-writing audits, and review workflows. Visible Markdown remains the source of truth.
 
 Core syntax:
 
+```markdown
 <!-- <atomdown version="1"/> -->
 <!-- <atom id="4P8W2H6K" slug="claim"/> -->
 <!-- <atom-group id="7K3M9X2D" slug="findings"> -->
 <!-- </atom-group> -->
+```
 
-Safe editing rules:
+Editing rules:
 
-1. Preserve all Atomdown comments and unknown attributes.
-2. An atom marker applies to the next top-level Markdown block.
-3. Keep each directive alone on its source line.
-4. Never change an existing ID when moving an item.
-5. Generate a new ID when copying an item.
-6. Keep atom-group markers balanced; Core 1 does not allow nested groups.
-7. Run `atomdown lint FILE` after editing.
+1. Preserve Atomdown comments and unknown attributes.
+2. Apply an atom marker to the next top-level Markdown block.
+3. Keep each directive on its own source line.
+4. Preserve an ID when you move its item.
+5. Generate a new ID when you copy an item.
+6. Keep group markers balanced. Atomdown Core 1 does not permit nested groups.
+7. Run `atomdown lint FILE` after you edit a document.
 
-## Normative documentation
+## Standard
 
-- [Atomdown Core 1 specification](SPEC.md): Syntax, identity, extensions, mixed Markdown, and conformance requirements.
-- [Normalized XML schema](schema/atomdown-1.xsd): XSD 1.0 model for extracted Atomdown metadata.
+- [Atomdown Core 1](SPEC.md): Normative syntax, identity, extension, and conformance rules.
+- [XML schema](schema/atomdown-1.xsd): XSD 1.0 model for normalized metadata.
 - [Conformance corpus](testdata/README.md): Valid, mixed, malformed, and golden documents.
 
 ## Implementation
 
-- [Go package overview](README.md): Installation, CLI commands, and embedded library examples.
-- [Parser](parser.go): CommonMark and Atomdown parsing behavior.
-- [Token API](token.go): Lossless Markdown, directive, and whitespace token stream.
-- [Extension API](processor.go): Compile-time transform hooks for embedded applications.
+- [Project guide](README.md): Design, CLI commands, and Go library examples.
+- [Parser](parser.go): CommonMark and Atomdown parsing.
+- [Token API](token.go): Lossless Markdown, directive, and whitespace tokens.
+- [Extension API](processor.go): Transform hooks for embedded applications.
 
 Machine-readable commands:
 
+```text
 atomdown parse FILE
 atomdown tokens FILE
 atomdown lint --json FILE
 atomdown xml FILE
 atomdown strip FILE
 atomdown id
+```
 
 ## Optional
 
-- [Agent contribution instructions](AGENTS.md): Build, test, and specification safety rules.
-- [Contribution guide](CONTRIBUTING.md): How to propose changes and update golden files.
+- [Agent instructions](AGENTS.md): Build, test, and safety rules for coding agents.
+- [Contribution guide](CONTRIBUTING.md): Proposal and test requirements.

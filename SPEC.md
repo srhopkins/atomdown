@@ -1,19 +1,19 @@
 # Atomdown Core 1
 
-Atomdown is a backward-compatible annotation layer for Markdown. XML-shaped directives inside HTML comments give top-level Markdown blocks persistent identity, grouping, and extensible attributes.
+Atomdown is a backward-compatible annotation layer for Markdown. XML-shaped directives add persistent identity, groups, and extensible attributes to top-level Markdown blocks.
 
 ## Design requirements
 
-Atomdown Core follows these requirements in priority order:
+The requirements are in priority order:
 
-1. An Atomdown document is valid CommonMark. A normal Markdown tool can parse it without Atomdown support.
-2. Atomdown directives use ordinary XML 1.0 element and attribute syntax inside ordinary HTML comments.
-3. The normalized metadata model is ordinary XML validated by an XML Schema Definition (XSD) 1.0 schema.
-4. Core stays small. It defines identity, grouping, ordering, and extension preservation.
-5. Extensions use XML attributes. Unknown attributes remain valid and must survive a parse-write cycle.
-6. Visible Markdown content remains the source of truth. Atomdown does not replace it with an application-owned representation.
+1. Each Atomdown document is valid CommonMark.
+2. Atomdown directives use XML 1.0 syntax inside HTML comments.
+3. The normalized metadata model uses an XML Schema Definition (XSD) 1.0 schema.
+4. Core defines only identity, grouping, order, and extension preservation.
+5. Unknown XML attributes remain valid and survive a parse and write cycle.
+6. Visible Markdown remains the source of truth.
 
-These requirements are normative. A feature that violates an earlier requirement does not belong in Atomdown Core.
+A feature does not belong in Core when the feature violates an earlier requirement.
 
 ## Core directives
 
@@ -24,38 +24,56 @@ These requirements are normative. A feature that violates an earlier requirement
 <!-- </atom-group> -->
 ```
 
-`atomdown` and `atom` directives are self-closing. `atom-group` uses paired opening and closing directives.
+The `atomdown` and `atom` directives are self-closing. The `atom-group` directive has an opening marker and a closing marker.
 
-Each directive must occupy its own source line. Only whitespace may appear before `<!--` or after `-->`. Directives must not appear inside paragraphs, lists, code fences, tables, block quotes, or other Markdown blocks.
+Each directive must occupy one source line. Only whitespace can occur before `<!--` or after `-->`.
 
-An `atom` directive applies to the next top-level CommonMark block. Source order is canonical. An `atom-group` contains the explicit atoms between its opening and closing directives. Atomdown Core 1 does not allow nested groups.
+Do not put a directive inside another Markdown block. Examples include paragraphs, lists, code fences, tables, and block quotes.
+
+An `atom` directive applies to the next top-level CommonMark block. Source order is canonical.
+
+An `atom-group` contains the explicit atoms between its markers. Atomdown Core 1 does not permit nested groups.
 
 ## Identity
 
-Every explicit atom and atom group requires a unique eight-character Crockford Base32 `id`. Moving an item preserves its ID. Copying an item creates a new ID.
+Each explicit atom and atom group requires a unique eight-character Crockford Base32 `id`.
 
-`slug` is an optional human-readable alias. It is not identity.
+Preserve the ID when you move an item. Generate a new ID when you copy an item.
+
+The optional `slug` attribute is a readable alias. The slug is not identity.
 
 ## Extensions
 
-Core defines only `version`, `id`, and `slug`. Any directive may contain additional XML attributes. Conforming tools must preserve unknown attributes, must not assign meaning to them, and must not execute their contents.
+Core defines the `version`, `id`, and `slug` attributes. A directive can contain additional XML attributes.
 
-Attribute names are case-sensitive. Extension authors should use lowercase kebab-case with a domain prefix, such as `audit-approved-by`.
+Core tools must preserve unknown attributes. Core tools must not assign meaning to unknown attributes or run their contents.
 
-An extension may define attribute meaning, validation, editor decoration, or agent behavior. It must not change the meaning of Core elements or Core attributes.
+Attribute names are case-sensitive. Use lowercase kebab-case with a domain prefix, such as `audit-approved-by`.
 
-Core tools must accept and preserve unknown attributes. They may report extension-specific diagnostics only when the extension is installed or explicitly requested.
+An extension can define attribute meaning, validation, editor decoration, or agent behavior. An extension must not change Core elements or Core attributes.
+
+A core tool accepts and preserves unknown attributes. The tool reports extension diagnostics only when the applicable extension is active.
 
 ## Mixed Markdown
 
-Unmarked top-level Markdown blocks are implicit atoms. Tools must not discard them or silently attach them to the previous explicit atom. A tool may materialize an implicit atom by inserting a marker with a new ID.
+An unmarked top-level Markdown block is an implicit atom. A tool must not discard the block or attach it to the previous atom.
+
+A tool can materialize an implicit atom. The tool inserts an atom marker with a new ID.
 
 ## XML validation model
 
-The Markdown source is not an XML document. A conforming parser extracts Atomdown directives and constructs the normalized XML model defined by `schema/atomdown-1.xsd`. XSD validates the core shape and extension attributes. The Atomdown linter validates Markdown association, source order, group balance, and ID rules.
+The Markdown source is not an XML document. A parser extracts Atomdown directives and creates the normalized XML model.
+
+The file `schema/atomdown-1.xsd` defines this model. The schema validates the Core shape and extension attributes.
+
+The Atomdown linter validates block association, source order, group balance, and ID rules.
 
 ## Conformance
 
-A conforming reader recognizes Core directives and never corrupts them. A conforming writer emits valid CommonMark, valid XML-shaped directives, unique IDs, and balanced groups. A conforming tool preserves unknown attributes.
+A conforming reader recognizes Core directives and preserves their contents.
 
-Tools should provide machine-readable diagnostics. Diagnostic messages should name the defect, source position, and repair.
+A conforming writer emits valid CommonMark and valid XML-shaped directives. The writer also emits unique IDs and balanced groups.
+
+A conforming tool preserves unknown attributes.
+
+Tools should provide machine-readable diagnostics. Each diagnostic should identify the defect, source position, and repair.
