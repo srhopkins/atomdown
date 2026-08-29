@@ -8,3 +8,6 @@ coverage.out
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Internal process tooling (local only)
+.ao-factory/

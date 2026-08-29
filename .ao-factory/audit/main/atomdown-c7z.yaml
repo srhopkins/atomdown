@@ -1,8 +1,0 @@
-bead: atomdown-c7z
-namespace: main
-search_query: "Normalized XML emits invalid attribute names for namespaced attributes"
-candidates: []
-associated_issues: none
-duplicate_issues: none
-checked_at: 2026-08-29T02:27:10Z
-written_by: ayo-related-set
