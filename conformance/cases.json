@@ -97,7 +97,7 @@
       "expect": {
         "lint_exit": 0,
         "lint_strict": true,
-        "diagnostic_codes": ["implicit-atom", "implicit-atom", "implicit-atom"]
+        "diagnostic_codes": ["missing-version-directive", "implicit-atom", "implicit-atom", "implicit-atom"]
       }
     },
     {
