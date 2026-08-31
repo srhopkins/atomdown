@@ -4,6 +4,8 @@ Atomdown adds persistent block IDs, groups, and extensible metadata to Markdown.
 
 Use Atomdown when people and AI agents need to address and review individual Markdown blocks. Visible Markdown remains the source of truth.
 
+The `materialize` command splits a document into addressable blocks, one atom marker per top-level block. Some people call this step chunking a document for agent consumption.
+
 Atomdown uses XML-shaped directives inside HTML comments:
 
 ```markdown
@@ -79,7 +81,7 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.
-- `materialize` adds a new atom marker before each unmarked top-level block. Use `materialize -w FILE` to update the file in place.
+- `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
 - `id` creates an eight-character Crockford Base32 ID.
 
 ## Go library
