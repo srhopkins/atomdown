@@ -49,6 +49,8 @@ atomdown xml FILE
 atomdown strip FILE
 atomdown materialize FILE
 atomdown materialize --split list-item FILE
+atomdown materialize --digest FILE
+atomdown drift FILE
 atomdown id
 ```
 
@@ -57,6 +59,8 @@ atomdown id
 `atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom, and adds the document version directive at the top when the source has none. Use `atomdown materialize -w FILE` to update the file in place.
 
 `atomdown materialize --split list-item FILE` splits a list into one atom per item instead of one atom for the whole list, wrapped in an atom-group. This changes rendered HTML (one list becomes several), so it is opt-in.
+
+`atomdown materialize --digest FILE` writes a Core content digest (`sha256:` plus 64 hex characters) to every atom that does not already have one, so a later run can tell whether the block's content changed. It never overwrites an atom that already has a digest; nothing does, automatically. Use `atomdown drift FILE` to report which atom IDs no longer match their recorded digest; it exits non-zero when it finds any. An atom with no digest is not checked.
 
 ## Optional
 

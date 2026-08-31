@@ -23,6 +23,7 @@ type Attribute struct {
 type Atom struct {
 	ID         string      `json:"id,omitempty"`
 	Slug       string      `json:"slug,omitempty"`
+	Digest     string      `json:"digest,omitempty"`
 	Attributes []Attribute `json:"attributes,omitempty"`
 	Marker     *Range      `json:"marker,omitempty"`
 	Content    Range       `json:"content"`

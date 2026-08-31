@@ -174,6 +174,24 @@ for case in cases:
                     wanted = fh.read()
                 errors.append(check("xml_file", out == wanted, f"stdout differs from {expect['xml_file']}"))
 
+    need_digest = any(key in expect for key in ("materialize_digest_exit", "digest_file"))
+    if need_digest:
+        code, out, err = run_cmd("materialize", ["--digest"], input_path, use_stdin)
+        if "materialize_digest_exit" in expect:
+            errors.append(check("materialize_digest_exit", code == expect["materialize_digest_exit"], f"got {code} want {expect['materialize_digest_exit']}"))
+        if "digest_file" in expect:
+            dest = resolve(expect["digest_file"])
+            if regen and code == 0:
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "wb") as fh:
+                    fh.write(out)
+            elif not os.path.isfile(dest):
+                errors.append(f"digest_file missing: {dest}")
+            else:
+                with open(dest, "rb") as fh:
+                    wanted = fh.read()
+                errors.append(check("digest_file", out == wanted, f"stdout differs from {expect['digest_file']}"))
+
     need_strip = any(key in expect for key in ("strip_exit", "strip_file"))
     if need_strip:
         code, out, err = run_cmd("strip", [], input_path, use_stdin)

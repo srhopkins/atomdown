@@ -26,7 +26,7 @@ The binary name does not matter. The command interface must match this contract.
 <bin> <command> [options] [file|-]
 ```
 
-`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `id`. The Go CLI also has `emit` and `materialize`; this suite does not cover them because both write output back (`emit` reconstructs Markdown from edited `parse` JSON, `materialize` rewrites the source file), which is out of scope for a read-only conformance check.
+`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `materialize --digest`, `id`. The Go CLI also has `emit`, plain `materialize`, and `drift`/`verify`; this suite does not cover them because they write output back or depend on a prior digest baseline, which is out of scope for a read-only conformance check. `materialize --digest` is the one exception: run on a document whose atoms already have explicit IDs and no digest, it is fully deterministic (it mints no new ID), so its stdout is a byte-exact oracle for the content digest algorithm — see `digest_file` below.
 
 File commands accept at most one file. Use `-` or omit the file to read standard input.
 
@@ -62,7 +62,7 @@ The object has these fields:
 - `diagnostics` (array, optional): parse and lint findings.
 - `attributes` (array, optional): extra attributes on the document marker.
 
-Each atom object may have `id` (string). Omit `id` when the atom has no persistent ID.
+Each atom object may have `id` (string) and `digest` (string). Omit `id` when the atom has no persistent ID. Omit `digest` when the atom has no content digest; a digest is opt-in and Core never adds one on its own.
 
 Each diagnostic object has `code` (string) and `severity` (`error` or `warning`).
 
@@ -107,6 +107,8 @@ Every field is optional. The runner runs a command only when a related key is pr
 - `lint_strict` (boolean): if `true`, the runner adds `--strict` to `lint`. Default is `false`.
 - `xml_file` (string): path to the expected `xml` bytes, relative to this directory. Compare exact bytes.
 - `strip_file` (string): path to the expected `strip` bytes, relative to this directory. Compare exact bytes.
+- `materialize_digest_exit` (integer): expected exit code of `materialize --digest`.
+- `digest_file` (string): path to the expected `materialize --digest` bytes, relative to this directory. Compare exact bytes. Use this only on an input whose atoms already carry explicit `id` attributes and no `digest`, so the run mints no random ID and stdout is fully determined by the content digest algorithm (SHA-256 over the atom's block bytes after normalizing line endings to LF; see `SPEC.md` "Content digest").
 
 A case may use any subset of these keys.
 
@@ -134,4 +136,4 @@ CGO_ENABLED=0 go build -o /tmp/ad ./cmd/atomdown
 ./run.sh --regen /tmp/ad
 ```
 
-`--regen` rewrites every `xml_file` and `strip_file` from the given binary. Then run without `--regen` to confirm the suite passes.
+`--regen` rewrites every `xml_file`, `strip_file`, and `digest_file` from the given binary. Then run without `--regen` to confirm the suite passes.

@@ -44,9 +44,74 @@ Preserve the ID when you move an item. Generate a new ID when you copy an item.
 
 The optional `slug` attribute is a readable alias. The slug is not identity.
 
+## Content digest
+
+An `atom` directive can carry an optional `digest` attribute. It answers a
+different question than `id`: `id` answers "is this the same block?" and
+must stay stable across an edit; `digest` answers "did this block's text
+change since something recorded this value?" and must change when the
+content changes. A review workflow needs both.
+
+A `digest` value has the form `sha256:` followed by the 64-character
+lowercase hexadecimal SHA-256 sum of the atom's normalized block bytes. The
+algorithm name is part of the value so a future second algorithm does not
+require a schema change.
+
+**What is hashed.** The digest covers exactly the atom's block content: the
+source bytes from the first byte of the block's first line through the
+last byte of the block's last line, with two exclusions:
+
+- The atom's own directive line is excluded. The digest is computed before
+  the directive is written, and writing the digest into the directive must
+  not change the bytes that produced it.
+- The block's trailing line-ending characters, and the blank line that
+  separates the block from whatever follows, are excluded. A digest never
+  covers bytes outside the block itself.
+
+Leading and interior whitespace inside the block is included and is
+significant: indentation sets list nesting, four leading spaces make a code
+block, two trailing spaces on a line are a hard line break, and inside a
+code fence every space is content. A tool must not collapse, trim, or
+reflow any of it before hashing. Two documents whose rendered HTML differs
+must not produce the same digest for the same atom.
+
+**The one normalization.** Before hashing, a tool normalizes CRLF and lone
+CR line endings inside the block to LF. This is the only transformation
+Core performs. Without it, the same document produces a different digest on
+a Windows checkout than on a Unix checkout, and a cross-platform team sees
+permanent phantom drift. A tool must not perform any other normalization:
+not whitespace collapsing, not Unicode normalization, not trimming. Two
+implementations that each hash the identical, LF-normalized block bytes
+with SHA-256 produce the identical digest; anything more clever creates a
+point where implementations can disagree.
+
+**Nothing refreshes a digest automatically.** A digest is a claim that
+someone reviewed this exact content. A tool must update or add a digest
+only in response to an explicit action that means "I have reviewed this
+block now" (for example, running `materialize --digest`, or a comparable
+extension command). Default `materialize`, `lint`, and any other command
+that runs as a side effect of editing or formatting a document must never
+write or change a `digest` attribute. A tool that silently refreshes a
+digest when content changes produces a digest that always matches,
+which carries no information.
+
+**Detecting drift.** A tool can compare each atom's recorded digest against
+a freshly computed digest of its current content. An atom whose digest no
+longer matches has drifted: its content changed since the digest was
+written. This is a binary result, not a similarity score; a small edit to
+text can invert its meaning while changing only a few bytes, so a percent
+match would misrepresent significance rather than measure it. Reporting
+which atom IDs drifted is the useful signal; showing what changed inside
+a block is not this feature's job because a version control diff already
+does that well.
+
+`digest` is Core-defined so two independent implementations validate the
+same bytes the same way; see the conformance corpus. Writing a digest is
+opt-in: a tool must not add one unless the operator asked for it.
+
 ## Extensions
 
-Core defines the `version`, `id`, and `slug` attributes. A directive can contain additional XML attributes.
+Core defines the `version`, `id`, `slug`, and `digest` attributes. A directive can contain additional XML attributes.
 
 Core tools must preserve unknown attributes. Core tools must not assign meaning to unknown attributes or run their contents.
 

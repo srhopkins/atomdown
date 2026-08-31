@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -185,6 +186,105 @@ func TestRunMaterializeSplitUnknownNodeTypeNamesAcceptedValues(t *testing.T) {
 	}
 	if string(written) != "* a\n" {
 		t.Fatalf("file was modified despite the error: %q", written)
+	}
+}
+
+func TestRunMaterializeDigestWritesDigestsAndDriftFindsAnEditedAtom(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\nPara one.\n\nPara two.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "--digest", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize --digest failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), `digest="sha256:`) {
+		t.Fatalf("expected a digest attribute after materialize --digest:\n%s", written)
+	}
+
+	// A clean document must report no drift and exit 0.
+	var driftOut, driftErr bytes.Buffer
+	if err := run([]string{"drift", path}, &driftOut, &driftErr); err != nil {
+		t.Fatalf("drift on an unchanged document must exit 0: %v\n%s", err, driftOut.String())
+	}
+
+	// Editing the last paragraph must make drift find it and exit non-zero.
+	edited := strings.Replace(string(written), "Para two.", "Para two, edited.", 1)
+	writeFile(t, path, edited)
+
+	var driftOut2, driftErr2 bytes.Buffer
+	err = run([]string{"drift", path}, &driftOut2, &driftErr2)
+	var status exitError
+	if !errors.As(err, &status) || status.code != 1 {
+		t.Fatalf("expected drift to exit 1 on a changed document, got %v", err)
+	}
+	idPattern := regexp.MustCompile(`id="([0-9A-HJKMNP-TV-Z]{8})"`)
+	matches := idPattern.FindAllStringSubmatch(edited, -1)
+	if len(matches) == 0 {
+		t.Fatal("no atom IDs found in the edited document")
+	}
+	lastID := matches[len(matches)-1][1]
+	if !strings.Contains(driftOut2.String(), lastID) {
+		t.Fatalf("expected drift output to name the edited atom %q, got:\n%s", lastID, driftOut2.String())
+	}
+
+	// verify is an accepted alias for drift.
+	var verifyOut bytes.Buffer
+	err = run([]string{"verify", path}, &verifyOut, &bytes.Buffer{})
+	if !errors.As(err, &status) || status.code != 1 {
+		t.Fatalf("expected verify to behave like drift and exit 1, got %v", err)
+	}
+}
+
+func TestRunMaterializeDigestNeverOverwritesAnExistingDigest(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\nPara one.\n")
+
+	var stdout1, stderr1 bytes.Buffer
+	if err := run([]string{"materialize", "--digest", "-w", path}, &stdout1, &stderr1); err != nil {
+		t.Fatalf("first materialize --digest failed: %v\n%s", err, stderr1.String())
+	}
+	firstWrite, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout2, stderr2 bytes.Buffer
+	if err := run([]string{"materialize", "--digest", "-w", path}, &stdout2, &stderr2); err != nil {
+		t.Fatalf("second materialize --digest failed: %v\n%s", err, stderr2.String())
+	}
+	secondWrite, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstWrite) != string(secondWrite) {
+		t.Fatalf("a second materialize --digest run changed the file:\nfirst:\n%s\nsecond:\n%s", firstWrite, secondWrite)
+	}
+	if !strings.Contains(stderr2.String(), "already has a digest") {
+		t.Fatalf("expected the second run to report nothing new to digest, got:\n%s", stderr2.String())
+	}
+}
+
+func TestRunMaterializePlainNeverWritesADigest(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\nPara one.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(written), "digest=") {
+		t.Fatalf("default materialize must never write a digest attribute:\n%s", written)
 	}
 }
 

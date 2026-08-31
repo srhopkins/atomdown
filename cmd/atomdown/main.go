@@ -18,7 +18,7 @@ const cliVersion = "0.1.0"
 
 // commandNames lists every command the CLI accepts, in the order printUsage
 // and the unknown-command message present them.
-var commandNames = []string{"parse", "emit", "tokens", "lint", "xml", "strip", "materialize", "id"}
+var commandNames = []string{"parse", "emit", "tokens", "lint", "xml", "strip", "materialize", "drift", "verify", "id"}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -52,6 +52,8 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 		return runStrip(arguments[1:], stdout)
 	case "materialize":
 		return runMaterialize(arguments[1:], stdout, stderr)
+	case "drift", "verify":
+		return runDrift(arguments[1:], stdout)
 	case "id":
 		return runID(arguments[1:], stdout)
 	case "help", "-h", "--help":
@@ -228,11 +230,15 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	flags := flag.NewFlagSet("materialize", flag.ContinueOnError)
 	write := flags.Bool("w", false, "write result in place")
 	split := flags.String("split", "", "comma-separated CommonMark node names to split into their own atoms (for example: list-item)")
+	digest := flags.Bool("digest", false, "write a Core content digest to every atom that does not already have one")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
 	if *write && (len(flags.Args()) != 1 || flags.Args()[0] == "-") {
 		return errors.New("materialize -w requires one file")
+	}
+	if *digest && *split != "" {
+		return errors.New("materialize --digest and --split cannot run together")
 	}
 	source, err := readInput(flags.Args())
 	if err != nil {
@@ -240,18 +246,25 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	}
 
 	var result []byte
-	var marked int
-	if *split == "" {
-		result, marked, err = atomdown.Materialize(source)
-	} else {
+	var marked, digested int
+	switch {
+	case *digest:
+		result, marked, digested, err = atomdown.MaterializeDigest(source)
+	case *split != "":
 		var nodeTypes []string
 		nodeTypes, err = atomdown.ParseSplitNodeTypes(*split)
 		if err == nil {
 			result, marked, err = atomdown.MaterializeSplit(source, nodeTypes)
 		}
+	default:
+		result, marked, err = atomdown.Materialize(source)
 	}
 	if err != nil {
 		return err
+	}
+	summary := materializeSummary(marked)
+	if *digest {
+		summary = materializeDigestSummary(marked, digested)
 	}
 	if !*write {
 		// stdout must carry only the marked Markdown, so the status line
@@ -260,7 +273,7 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(statusOutput, materializeSummary(marked))
+		fmt.Fprintln(statusOutput, summary)
 		return nil
 	}
 	info, err := os.Stat(flags.Args()[0])
@@ -270,7 +283,7 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	if err := os.WriteFile(flags.Args()[0], result, info.Mode().Perm()); err != nil {
 		return err
 	}
-	fmt.Fprintln(statusOutput, materializeSummary(marked))
+	fmt.Fprintln(statusOutput, summary)
 	return nil
 }
 
@@ -283,6 +296,36 @@ func materializeSummary(marked int) string {
 	default:
 		return fmt.Sprintf("ok - marked %d blocks", marked)
 	}
+}
+
+func materializeDigestSummary(marked, digested int) string {
+	switch digested {
+	case 0:
+		return "ok - every atom already has a digest"
+	case 1:
+		return fmt.Sprintf("ok - marked %d block(s), wrote 1 digest", marked)
+	default:
+		return fmt.Sprintf("ok - marked %d block(s), wrote %d digests", marked, digested)
+	}
+}
+
+func runDrift(arguments []string, output io.Writer) error {
+	if len(arguments) > 1 {
+		return errors.New("drift accepts at most one file")
+	}
+	source, err := readInput(arguments)
+	if err != nil {
+		return err
+	}
+	drifted := atomdown.Drift(source)
+	if len(drifted) == 0 {
+		fmt.Fprintln(output, "ok - no drift")
+		return nil
+	}
+	for _, atom := range drifted {
+		fmt.Fprintf(output, "%s: content changed since the digest was recorded\n", atom.ID)
+	}
+	return exitError{code: 1}
 }
 
 func runID(arguments []string, output io.Writer) error {
@@ -322,7 +365,7 @@ func inputName(arguments []string) string {
 }
 
 func printUsage(output io.Writer) {
-	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|id> [options] [file|-]")
+	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|drift|verify|id> [options] [file|-]")
 }
 
 type exitError struct{ code int }

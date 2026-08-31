@@ -23,6 +23,7 @@ type normalizedAtom struct {
 	XMLName    xml.Name   `xml:"atom"`
 	ID         string     `xml:"id,attr"`
 	Slug       string     `xml:"slug,attr,omitempty"`
+	Digest     string     `xml:"digest,attr,omitempty"`
 	Attributes []xml.Attr `xml:",any,attr"`
 }
 
@@ -52,7 +53,7 @@ func NormalizedXML(document Document) ([]byte, error) {
 		if atom.Implicit {
 			continue
 		}
-		normalized := normalizedAtom{ID: atom.ID, Slug: atom.Slug, Attributes: toXMLAttributes(atom.Attributes)}
+		normalized := normalizedAtom{ID: atom.ID, Slug: atom.Slug, Digest: atom.Digest, Attributes: toXMLAttributes(atom.Attributes)}
 		if atom.GroupID == "" {
 			root.Items = append(root.Items, normalizedItem{Atom: &normalized})
 			continue

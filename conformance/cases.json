@@ -19,6 +19,15 @@
       }
     },
     {
+      "name": "valid-minimal-content-digest",
+      "category": "valid",
+      "input": "../testdata/valid/minimal.md",
+      "expect": {
+        "materialize_digest_exit": 0,
+        "digest_file": "expected/valid-minimal.digest.md"
+      }
+    },
+    {
       "name": "valid-complete",
       "category": "valid",
       "input": "../testdata/valid/complete.md",
@@ -199,6 +208,20 @@
         "atom_ids": [],
         "diagnostic_codes": ["inline-directive"],
         "strip_file": "expected/malformed-inline-directive.stripped.md"
+      }
+    },
+    {
+      "name": "malformed-invalid-digest",
+      "category": "malformed",
+      "input": "../testdata/malformed/invalid-digest.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K"],
+        "diagnostic_codes": ["invalid-digest"],
+        "strip_file": "expected/malformed-invalid-digest.stripped.md"
       }
     },
     {

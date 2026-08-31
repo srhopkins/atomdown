@@ -71,6 +71,8 @@ go run ./cmd/atomdown xml testdata/example.md
 go run ./cmd/atomdown strip testdata/example.md
 go run ./cmd/atomdown materialize testdata/example.md
 go run ./cmd/atomdown materialize --split list-item testdata/example.md
+go run ./cmd/atomdown materialize --digest testdata/example.md
+go run ./cmd/atomdown drift testdata/example.md
 go run ./cmd/atomdown id
 ```
 
@@ -85,6 +87,8 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `strip` removes Atomdown directives and writes plain Markdown.
 - `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. It also adds the document version directive at the top of the file when the source does not already declare one. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
 - `materialize --split <node-types>` gives finer granularity than one atom per top-level block. `<node-types>` is a comma-separated list of CommonMark node names; today only `list-item` is accepted. An unknown name exits non-zero and names the accepted values. See "Splitting a list into per-item atoms" below before you use it.
+- `materialize --digest` adds a Core content digest to every atom that does not already have one, so a later `drift` run can tell whether the block changed since this run. It never touches an atom that already has a digest. See "Detecting content drift" below.
+- `drift` (also `verify`) reports which atom IDs have a digest that no longer matches their content, and exits non-zero when it finds any. An atom with no digest is not checked.
 - `id` creates an eight-character Crockford Base32 ID.
 
 ### Splitting a list into per-item atoms
@@ -112,6 +116,28 @@ go run ./cmd/atomdown materialize --split list-item -w criteria.md
 **The atom-group is load-bearing.** `--split` always wraps the split items in one `atom-group`. The group records that the items belonged to one list, and it is the only way to tell a deliberate split from an accidental one, since the two are otherwise byte-identical to a parser. `lint` warns when it finds split single-item lists that are not wrapped in a shared atom-group (`directive-splits-list`), because that pattern silently changes rendered structure without recording that the change was deliberate. Running `materialize --split list-item` again is a no-op: a list already split to one item per group is left alone.
 
 **Two limits.** A nested list item's children are not individually addressable: `--split list-item` only splits the top-level items of a list, so a parent item's atom still covers every child nested under it. A GFM table's rows are not addressable at all; a table always gets one atom for the whole table (tracked separately, see the "materialize --split table-row" issue).
+
+### Detecting content drift
+
+An atom ID answers "is this the same block?"; it stays stable across an edit by design. A content digest answers the opposite question, "did this block's text change?" Together they support a review workflow: approve a block by ID, then later confirm its content still matches what was approved.
+
+```bash
+go run ./cmd/atomdown materialize --digest -w reviewed.md
+# ... time passes, someone edits reviewed.md ...
+go run ./cmd/atomdown drift reviewed.md
+```
+
+```markdown
+<!-- <atomdown version="1"/> -->
+<!-- <atom id="4P8W2H6K" digest="sha256:bf7180cdede996da9d68106d9acfcfd2e5aacc0abe2f7fe3adb3cbecfd27f1be"/> -->
+The regional rollout continued through April.
+```
+
+`materialize --digest` writes a digest to every atom that does not already have one; it never touches one that does. `drift` recomputes each digested atom's content digest and reports every atom ID whose recorded digest no longer matches, then exits non-zero. It does not show what changed inside the block; a diff already does that well.
+
+**Nothing refreshes a digest automatically, ever.** Not `materialize` without `--digest`, not `lint`, nothing. A digest means "someone reviewed this exact content"; a tool that silently updates it when content changes turns that signal into a value that always matches, which tells a reviewer nothing. To mark a block reviewed again after a real edit, remove its `digest` attribute and run `materialize --digest` again.
+
+The digest covers the atom's block bytes exactly as written, including whitespace: reflowing a paragraph or changing indentation counts as drift, and there is no partial-match score, only "changed" or "unchanged". See SPEC.md "Content digest" for the exact byte range and the one line-ending normalization the algorithm performs.
 
 ## Go library
 

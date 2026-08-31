@@ -11,9 +11,16 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="ContentDigest">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="sha256:[0-9a-f]{64}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:complexType name="AtomType">
     <xs:attribute name="id" type="AtomID" use="required"/>
     <xs:attribute name="slug" type="xs:string" use="optional"/>
+    <xs:attribute name="digest" type="ContentDigest" use="optional"/>
     <xs:anyAttribute namespace="##any" processContents="lax"/>
   </xs:complexType>
 

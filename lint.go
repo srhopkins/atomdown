@@ -40,6 +40,13 @@ func lintDocument(document *Document, lineStarts []int, listItemCounts map[int]i
 			continue
 		}
 		lintID(document, "atom", atom.ID, atom.Marker.Start, seen)
+		if atom.Digest != "" && !digestPattern.MatchString(atom.Digest) {
+			document.Diagnostics = append(document.Diagnostics, Diagnostic{
+				Code: "invalid-digest", Severity: SeverityError,
+				Message: fmt.Sprintf("atom digest %q is not a well-formed sha256 content digest.", atom.Digest), Position: atom.Marker.Start,
+				Fix: "Remove the digest attribute and regenerate it with atomdown materialize --digest.",
+			})
+		}
 	}
 	for _, group := range document.Groups {
 		lintID(document, "atom group", group.ID, group.Marker.Start, seen)

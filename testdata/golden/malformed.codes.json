@@ -1,6 +1,7 @@
 {
   "duplicate-id.md": ["missing-version-directive", "duplicate-id"],
   "inline-directive.md": ["inline-directive", "missing-version-directive", "implicit-atom"],
+  "invalid-digest.md": ["missing-version-directive", "invalid-digest"],
   "invalid-xml.md": ["invalid-directive", "missing-version-directive", "implicit-atom", "implicit-atom"],
   "missing-id.md": ["missing-version-directive", "missing-id"],
   "unclosed-group.md": ["unclosed-group", "missing-version-directive"]

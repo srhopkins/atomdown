@@ -94,6 +94,9 @@ func Emit(document Document) ([]byte, error) {
 			if atom.Slug != "" {
 				attributes = append(attributes, Attribute{Name: "slug", Value: atom.Slug})
 			}
+			if atom.Digest != "" {
+				attributes = append(attributes, Attribute{Name: "digest", Value: atom.Digest})
+			}
 			marker, err := sourceMarker("atom", true, attributes, atom.Attributes)
 			if err != nil {
 				return nil, err

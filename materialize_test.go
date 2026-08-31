@@ -148,6 +148,106 @@ func TestMaterializeErrorsClearlyWhenCollisionRetriesAreExhausted(t *testing.T) 
 	}
 }
 
+func TestMaterializeDigestDoesNotRunWithoutTheFlag(t *testing.T) {
+	source := []byte("# T\n\nPara one.\n")
+	output, _, err := Materialize(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(output, []byte("digest=")) {
+		t.Fatalf("plain Materialize must never write a digest attribute:\n%s", output)
+	}
+}
+
+func TestMaterializeDigestWritesOneDigestPerAtom(t *testing.T) {
+	source := []byte("# T\n\nPara one.\n\nPara two.\n")
+	output, marked, digested, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 3 || digested != 3 {
+		t.Fatalf("expected 3 marked and 3 digested, got marked=%d digested=%d:\n%s", marked, digested, output)
+	}
+	digestPattern := regexp.MustCompile(`digest="sha256:[0-9a-f]{64}"`)
+	matches := digestPattern.FindAll(output, -1)
+	if len(matches) != 3 {
+		t.Fatalf("expected 3 well-formed digest attributes, found %d:\n%s", len(matches), output)
+	}
+}
+
+func TestMaterializeDigestNeverOverwritesAnExistingDigest(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" digest=\"sha256:0000000000000000000000000000000000000000000000000000000000000000\"/> -->\n\nContent changed after the digest was written.\n")
+	output, marked, digested, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 0 || digested != 0 {
+		t.Fatalf("expected nothing to change for an already-digested atom, got marked=%d digested=%d", marked, digested)
+	}
+	if !bytes.Contains(output, []byte(`digest="sha256:0000000000000000000000000000000000000000000000000000000000000000"`)) {
+		t.Fatalf("the stale digest was altered:\n%s", output)
+	}
+}
+
+func TestMaterializeDigestAddsDigestToAnExistingExplicitAtomWithoutTouchingOtherBytes(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" acme-status=\"approved\"/> -->\n\nSome content.\n")
+	output, marked, digested, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 0 {
+		t.Fatalf("no implicit atom was materialized, expected marked=0, got %d", marked)
+	}
+	if digested != 1 {
+		t.Fatalf("expected 1 atom to gain a digest, got %d:\n%s", digested, output)
+	}
+	if !bytes.Contains(output, []byte(`id="4P8W2H6K" acme-status="approved" digest="sha256:`)) {
+		t.Fatalf("expected the digest appended after the existing attributes, unchanged:\n%s", output)
+	}
+}
+
+func TestMaterializeDigestExcludesTheDirectiveLineFromTheHash(t *testing.T) {
+	withoutExtra := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nSame content.\n")
+	withExtra := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" acme-owner=\"research\"/> -->\n\nSame content.\n")
+
+	firstOutput, _, _, err := MaterializeDigest(withoutExtra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOutput, _, _, err := MaterializeDigest(withExtra)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	digestPattern := regexp.MustCompile(`digest="(sha256:[0-9a-f]{64})"`)
+	first := digestPattern.FindSubmatch(firstOutput)
+	second := digestPattern.FindSubmatch(secondOutput)
+	if first == nil || second == nil {
+		t.Fatalf("expected a digest attribute in both outputs:\n%s\n%s", firstOutput, secondOutput)
+	}
+	if string(first[1]) != string(second[1]) {
+		t.Fatalf("an unrelated directive attribute changed the digest: %s vs %s", first[1], second[1])
+	}
+}
+
+func TestMaterializeDigestIsIdempotentWhenNothingChanged(t *testing.T) {
+	source := []byte("# T\n\nPara one.\n")
+	firstOutput, _, _, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOutput, marked, digested, err := MaterializeDigest(firstOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 0 || digested != 0 {
+		t.Fatalf("expected the second run to change nothing, got marked=%d digested=%d", marked, digested)
+	}
+	if !bytes.Equal(firstOutput, secondOutput) {
+		t.Fatalf("second MaterializeDigest run changed the file:\nfirst:\n%s\nsecond:\n%s", firstOutput, secondOutput)
+	}
+}
+
 func TestMaterializeIsIdempotentOnSecondRun(t *testing.T) {
 	source := []byte("# One\n\npara two\n")
 	firstOutput, firstMarked, err := Materialize(source)

@@ -30,6 +30,7 @@ type directive struct {
 	name       string
 	id         string
 	slug       string
+	digest     string
 	version    string
 	attributes []Attribute
 	rawRange   byteRange
@@ -108,7 +109,7 @@ func Parse(source []byte) Document {
 
 		block := blocks[blockIndex]
 		atom := Atom{
-			ID: item.id, Slug: item.slug, Attributes: item.attributes,
+			ID: item.id, Slug: item.slug, Digest: item.digest, Attributes: item.attributes,
 			Marker:   rangePointer(makeRange(item.rawRange, lineStarts)),
 			Content:  makeRange(byteRange{block.start, block.end}, lineStarts),
 			NodeType: block.nodeType,
@@ -269,6 +270,8 @@ func parseDirective(body []byte, sourceRange byteRange) (directive, bool, error)
 				result.id = attribute.Value
 			case key == "slug" && (result.kind == directiveAtom || result.kind == directiveGroupStart):
 				result.slug = attribute.Value
+			case key == "digest" && result.kind == directiveAtom:
+				result.digest = attribute.Value
 			case key == "version" && result.kind == directiveDocument:
 				result.version = attribute.Value
 			default:
