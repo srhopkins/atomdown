@@ -196,18 +196,25 @@ func scanDirectives(source []byte, lineStarts []int) ([]directive, []Diagnostic)
 			))
 		}
 		if parsed, recognized, err := parseDirective(body, byteRange{start, end}); recognized {
-			if err != nil {
+			switch {
+			case bytes.IndexByte(source[start:end], '\n') >= 0:
+				diagnostics = append(diagnostics, newDiagnostic(
+					"multi-line-directive", SeverityError,
+					"Atomdown directive comment must occupy exactly one source line.", start,
+					"Put the entire <!-- ... --> comment on a single line.", lineStarts,
+				))
+			case err != nil:
 				diagnostics = append(diagnostics, newDiagnostic(
 					"invalid-directive", SeverityError, err.Error(), start,
 					"Correct the XML-shaped Atomdown directive.", lineStarts,
 				))
-			} else if !directiveOccupiesLine(source, start, end) {
+			case !directiveOccupiesLine(source, start, end):
 				diagnostics = append(diagnostics, newDiagnostic(
 					"inline-directive", SeverityError,
 					"Atomdown directive must occupy its own source line.", start,
 					"Move the directive to a separate line outside the Markdown block.", lineStarts,
 				))
-			} else {
+			default:
 				directives = append(directives, parsed)
 			}
 		}

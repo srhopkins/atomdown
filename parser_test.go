@@ -524,3 +524,48 @@ func TestStackedAtomMarkersReportAccurateDiagnostic(t *testing.T) {
 		t.Fatalf("atoms = %#v, want the paragraph assigned to the second marker only", document.Atoms)
 	}
 }
+
+// TestMultiLineDirectiveCommentIsRejected guards SPEC.md's "each directive
+// occupies one source line" rule. Before the fix, an HTML comment whose
+// "<!--" and "-->" landed on different lines still parsed as a valid
+// directive because only the first and last lines were checked for stray
+// text, never whether they were the same line.
+func TestMultiLineDirectiveCommentIsRejected(t *testing.T) {
+	source := []byte("<!-- <atom\nid=\"4P8W2H6K\"\n/> -->\n\nParagraph.\n")
+	document := Parse(source)
+	var found bool
+	for _, diagnostic := range document.Diagnostics {
+		if diagnostic.Code == "multi-line-directive" {
+			found = true
+			if diagnostic.Position.Line != 1 {
+				t.Fatalf("diagnostic position line = %d, want 1 (the opening <!--)", diagnostic.Position.Line)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want a multi-line-directive diagnostic", document.Diagnostics)
+	}
+	for _, atom := range document.Atoms {
+		if atom.ID == "4P8W2H6K" {
+			t.Fatalf("multi-line directive comment was still accepted as an atom marker: %#v", atom)
+		}
+	}
+}
+
+// TestSingleLineDirectiveUnaffectedByMultiLineCheck guards against the
+// multi-line-directive check regressing ordinary single-line directives.
+func TestSingleLineDirectiveUnaffectedByMultiLineCheck(t *testing.T) {
+	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	for _, diagnostic := range document.Diagnostics {
+		if diagnostic.Code == "multi-line-directive" {
+			t.Fatalf("single-line directive flagged as multi-line: %#v", document.Diagnostics)
+		}
+	}
+	if len(document.Atoms) != 1 || document.Atoms[0].ID != "4P8W2H6K" {
+		t.Fatalf("atoms = %#v, want one explicit atom 4P8W2H6K", document.Atoms)
+	}
+}
