@@ -237,6 +237,20 @@
         "diagnostic_codes": ["invalid-directive"],
         "strip_file": "expected/malformed-invalid-xml.stripped.md"
       }
+    },
+    {
+      "name": "malformed-stacked-atom-markers",
+      "category": "malformed",
+      "input": "../testdata/malformed/stacked-atom-markers.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 1,
+        "xml_exit": 2,
+        "strip_exit": 0,
+        "atom_ids": ["9R3C7M5D"],
+        "diagnostic_codes": ["shadowed-atom"],
+        "strip_file": "expected/malformed-stacked-atom-markers.stripped.md"
+      }
     }
   ]
 }

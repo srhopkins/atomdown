@@ -34,6 +34,8 @@ An `atom` directive applies to the next top-level CommonMark block. Source order
 
 An `atom-group` contains the explicit atoms between its markers. Atomdown Core 1 does not permit nested groups.
 
+A thematic break (`---`) is a top-level CommonMark block like any other. It has its own source extent: one atom marker before it must not swallow it, and one atom marker before it must not swallow whatever follows it either. Because it is an ordinary top-level block, an atom directive can target it directly; the atom's content is then that one break line, and nothing else.
+
 ## Identity
 
 Each explicit atom and atom group requires an eight-character Crockford Base32 `id`.

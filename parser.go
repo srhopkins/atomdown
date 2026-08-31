@@ -90,7 +90,7 @@ func Parse(source []byte) Document {
 	for _, directiveIndex := range atomDirectiveIndexes {
 		item := directives[directiveIndex]
 		blockIndex := nextContentBlock(blocks, item.rawRange.end)
-		if blockIndex < 0 || blockedByDirective(directives, directiveIndex, blocks[blockIndex].start) {
+		if blockIndex < 0 {
 			document.Diagnostics = append(document.Diagnostics, newDiagnostic(
 				"orphan-atom", SeverityError,
 				"Atom marker is not followed by a Markdown block.", item.rawRange.start,
@@ -98,15 +98,36 @@ func Parse(source []byte) Document {
 			))
 			continue
 		}
-		if previous, exists := assigned[blockIndex]; exists {
-			document.Diagnostics = append(document.Diagnostics, newDiagnostic(
-				"duplicate-assignment", SeverityError,
-				fmt.Sprintf("Markdown block is already assigned to atom %q.", document.Atoms[previous].ID),
-				item.rawRange.start, "Remove one of the atom markers.", lineStarts,
-			))
+		if blocker, blocked := firstBlockingDirective(directives, directiveIndex, blocks[blockIndex].start); blocked {
+			if blocker.kind == directiveAtom {
+				// A block does exist here; the next atom marker claims it
+				// first. Reporting "not followed by a Markdown block" would
+				// be false, so this gets its own, accurate diagnostic.
+				document.Diagnostics = append(document.Diagnostics, newDiagnostic(
+					"shadowed-atom", SeverityError,
+					fmt.Sprintf(
+						"Atom marker has no Markdown block of its own: the atom marker at line %d claims the next block instead.",
+						makePosition(blocker.rawRange.start, lineStarts).Line,
+					),
+					item.rawRange.start,
+					"Remove one of the stacked atom markers, or put a Markdown block between them.", lineStarts,
+				))
+			} else {
+				document.Diagnostics = append(document.Diagnostics, newDiagnostic(
+					"orphan-atom", SeverityError,
+					"Atom marker is not followed by a Markdown block.", item.rawRange.start,
+					"Add content after the marker or remove the marker.", lineStarts,
+				))
+			}
 			continue
 		}
 
+		// assigned[blockIndex] can never already be set here: nextContentBlock
+		// only returns blocks at or after this directive's own end, directives
+		// are processed in source order, and any earlier directive that could
+		// reach the same block would have been reported above as blocking
+		// (or blocked by) this one first. There is no reachable path to a
+		// genuine double assignment, so there is nothing to guard here.
 		block := blocks[blockIndex]
 		atom := Atom{
 			ID: item.id, Slug: item.slug, Digest: item.digest, Attributes: item.attributes,
@@ -318,9 +339,16 @@ func xmlAttributeName(name xml.Name) string {
 func scanMarkdownBlocks(source []byte, directives []directive) []markdownBlock {
 	markdown := goldmark.New(goldmark.WithExtensions(extension.GFM))
 	root := markdown.Parser().Parse(text.NewReader(source))
-	var blocks []markdownBlock
+
+	var topLevel []ast.Node
 	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
-		start, ok := markdownNodeStart(node)
+		topLevel = append(topLevel, node)
+	}
+	starts := resolveTopLevelStarts(source, topLevel)
+
+	var blocks []markdownBlock
+	for index, node := range topLevel {
+		start, ok := starts[index]
 		if !ok {
 			continue
 		}
@@ -362,6 +390,99 @@ func markdownNodeStart(node ast.Node) (int, bool) {
 	return 0, false
 }
 
+// markdownNodeEnd returns the byte offset just past a node's last source
+// line. It mirrors markdownNodeStart: a node with no Lines() of its own (a
+// container such as List or Blockquote) falls back to its last descendant
+// that has one. A ThematicBreak has neither Lines() nor children, so it
+// reports false; callers resolve a thematic break's extent separately, in
+// resolveTopLevelStarts below.
+func markdownNodeEnd(node ast.Node) (int, bool) {
+	lines := node.Lines()
+	if lines != nil && lines.Len() > 0 {
+		return lines.At(lines.Len() - 1).Stop, true
+	}
+	for child := node.LastChild(); child != nil; child = child.PreviousSibling() {
+		if end, ok := markdownNodeEnd(child); ok {
+			return end, true
+		}
+	}
+	return 0, false
+}
+
+// resolveTopLevelStarts finds the start offset of every top-level node,
+// including a ThematicBreak, which goldmark's parser never attaches source
+// Lines() to (see ast.NewThematicBreak and parser.thematicBreakPraser.Open).
+// Without a resolved start, scanMarkdownBlocks previously skipped a
+// thematic break entirely: the block before it silently absorbed the "---"
+// line and everything up to the next real block, and a break could never
+// be targeted by its own atom marker.
+//
+// A ThematicBreak's start is found by scanning the source gap between the
+// nearest preceding sibling with a known end and the nearest following
+// sibling with a known start. Every non-blank line in that gap must be a
+// thematic break line: if goldmark had parsed a gap line as anything else,
+// that line would have produced its own node and narrowed the gap. So the
+// non-blank lines in a gap, taken in order, correspond one-to-one with the
+// run of ThematicBreak nodes that gap contains.
+func resolveTopLevelStarts(source []byte, nodes []ast.Node) map[int]int {
+	starts := make(map[int]int, len(nodes))
+	for index, node := range nodes {
+		if start, ok := markdownNodeStart(node); ok {
+			starts[index] = start
+		}
+	}
+	for index := 0; index < len(nodes); {
+		if _, ok := starts[index]; ok {
+			index++
+			continue
+		}
+		runEnd := index
+		for runEnd < len(nodes) {
+			if _, ok := starts[runEnd]; ok {
+				break
+			}
+			runEnd++
+		}
+		lower := 0
+		if index > 0 {
+			if end, ok := markdownNodeEnd(nodes[index-1]); ok {
+				lower = end
+			}
+		}
+		upper := len(source)
+		if runEnd < len(nodes) {
+			upper = starts[runEnd]
+		}
+		lines := nonBlankLineOffsets(source, lower, upper)
+		for offset := index; offset < runEnd && offset-index < len(lines); offset++ {
+			starts[offset] = lines[offset-index]
+		}
+		index = runEnd
+	}
+	return starts
+}
+
+// nonBlankLineOffsets returns the start offset of every non-blank line in
+// source[lower:upper).
+func nonBlankLineOffsets(source []byte, lower, upper int) []int {
+	var offsets []int
+	cursor := lower
+	for cursor < upper {
+		lineEnd := upper
+		nextCursor := upper
+		if relative := bytes.IndexByte(source[cursor:upper], '\n'); relative >= 0 {
+			lineEnd = cursor + relative
+			nextCursor = lineEnd + 1
+		}
+		line := bytes.TrimRight(source[cursor:lineEnd], "\r")
+		if len(bytes.TrimSpace(line)) > 0 {
+			offsets = append(offsets, cursor)
+		}
+		cursor = nextCursor
+	}
+	return offsets
+}
+
 func sourceLineStart(source []byte, offset int) int {
 	return bytes.LastIndexByte(source[:offset], '\n') + 1
 }
@@ -382,17 +503,21 @@ func nextContentBlock(blocks []markdownBlock, offset int) int {
 	return -1
 }
 
-func blockedByDirective(directives []directive, current int, blockStart int) bool {
+// firstBlockingDirective reports the nearest directive that sits between
+// `current` and the candidate block at blockStart, if one exists. A
+// group-start directive never blocks: it can open right after an atom
+// directive without claiming that atom's target block.
+func firstBlockingDirective(directives []directive, current int, blockStart int) (directive, bool) {
 	for index := current + 1; index < len(directives); index++ {
 		item := directives[index]
 		if item.rawRange.start >= blockStart {
-			return false
+			return directive{}, false
 		}
 		if item.kind == directiveAtom || item.kind == directiveGroupEnd || item.kind == directiveDocument {
-			return true
+			return item, true
 		}
 	}
-	return false
+	return directive{}, false
 }
 
 func applyGroups(document *Document, directives []directive, lineStarts []int) {

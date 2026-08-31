@@ -4,5 +4,6 @@
   "invalid-digest.md": ["missing-version-directive", "invalid-digest"],
   "invalid-xml.md": ["invalid-directive", "missing-version-directive", "implicit-atom", "implicit-atom"],
   "missing-id.md": ["missing-version-directive", "missing-id"],
+  "stacked-atom-markers.md": ["shadowed-atom", "missing-version-directive"],
   "unclosed-group.md": ["unclosed-group", "missing-version-directive"]
 }

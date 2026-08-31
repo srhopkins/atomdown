@@ -439,3 +439,88 @@ func TestProcessorExtension(t *testing.T) {
 		t.Fatalf("extension diagnostic missing: %#v", document.Diagnostics)
 	}
 }
+
+// TestThematicBreakHasOwnBlockExtent guards against a thematic break being
+// treated as having no source extent. Before the fix, a "---" between two
+// paragraphs produced no markdownBlock entry at all, so the paragraph
+// before it silently absorbed the break line and everything up to the next
+// real block.
+func TestThematicBreakHasOwnBlockExtent(t *testing.T) {
+	source := []byte("First paragraph.\n\n---\n\nSecond paragraph.\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	if len(document.Atoms) != 3 {
+		t.Fatalf("atoms = %#v, want 3 (paragraph, break, paragraph)", document.Atoms)
+	}
+	if got := document.Atoms[0].Text; got != "First paragraph." {
+		t.Fatalf("first atom text = %q, want %q (must not swallow the break)", got, "First paragraph.")
+	}
+	if got := document.Atoms[1].NodeType; got != "ThematicBreak" {
+		t.Fatalf("second atom nodeType = %q, want ThematicBreak", got)
+	}
+	if got := document.Atoms[1].Text; got != "---" {
+		t.Fatalf("second atom text = %q, want %q", got, "---")
+	}
+	if got := document.Atoms[2].Text; got != "Second paragraph." {
+		t.Fatalf("third atom text = %q, want %q", got, "Second paragraph.")
+	}
+}
+
+// TestAtomCanTargetThematicBreak guards against a break being permanently
+// unaddressable. Before the fix, an atom marker placed directly before a
+// "---" skipped straight over it and attached to whatever real block came
+// next, so a break itself could never carry an atom marker. SPEC.md
+// documents the choice: a thematic break is an ordinary top-level block,
+// so an atom directive can target it like any other.
+func TestAtomCanTargetThematicBreak(t *testing.T) {
+	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\n---\n\nParagraph after the break.\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	if len(document.Atoms) != 2 {
+		t.Fatalf("atoms = %#v, want 2 (break, paragraph)", document.Atoms)
+	}
+	atom := document.Atoms[0]
+	if atom.Implicit {
+		t.Fatalf("break atom is implicit, want explicit: %#v", atom)
+	}
+	if atom.ID != "4P8W2H6K" {
+		t.Fatalf("break atom ID = %q, want 4P8W2H6K", atom.ID)
+	}
+	if atom.NodeType != "ThematicBreak" {
+		t.Fatalf("break atom nodeType = %q, want ThematicBreak", atom.NodeType)
+	}
+	if atom.Text != "---" {
+		t.Fatalf("break atom text = %q, want %q", atom.Text, "---")
+	}
+	if got := document.Atoms[1].Text; got != "Paragraph after the break." {
+		t.Fatalf("second atom text = %q, want %q", got, "Paragraph after the break.")
+	}
+}
+
+// TestStackedAtomMarkersReportAccurateDiagnostic guards against a false
+// "not followed by a Markdown block" message when two atom markers stack
+// above one paragraph. A block does exist; the second marker claims it
+// first, and the first marker's diagnostic must say so accurately.
+func TestStackedAtomMarkersReportAccurateDiagnostic(t *testing.T) {
+	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n<!-- <atom id=\"9R3C7M5D\"/> -->\n\nParagraph.\n")
+	document := Parse(source)
+	var found *Diagnostic
+	for index := range document.Diagnostics {
+		if document.Diagnostics[index].Code == "shadowed-atom" {
+			found = &document.Diagnostics[index]
+		}
+		if document.Diagnostics[index].Code == "orphan-atom" {
+			t.Fatalf("got orphan-atom, want shadowed-atom: a block does exist, the next marker claims it")
+		}
+	}
+	if found == nil {
+		t.Fatalf("diagnostics = %#v, want a shadowed-atom diagnostic", document.Diagnostics)
+	}
+	if len(document.Atoms) != 1 || document.Atoms[0].ID != "9R3C7M5D" {
+		t.Fatalf("atoms = %#v, want the paragraph assigned to the second marker only", document.Atoms)
+	}
+}
