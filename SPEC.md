@@ -74,6 +74,8 @@ Default lint permits implicit atoms because mixed documents support partial adop
 
 When the source has no atomdown document marker, the normalized model assumes version 1 and lists only explicit atoms and groups.
 
+A tool that writes an Atomdown document emits the version directive; a tool that reads a document must not require the version directive. `lint --strict` reports its absence as a warning.
+
 ## Conformance
 
 A conforming reader recognizes Core directives and preserves their contents.

@@ -157,7 +157,7 @@ func runLint(arguments []string, output io.Writer) error {
 	document := atomdown.Parse(source)
 	diagnostics := document.Diagnostics
 	if !*strict {
-		diagnostics = withoutImplicitAtomWarnings(diagnostics)
+		diagnostics = withoutStrictOnlyWarnings(diagnostics)
 	}
 	if *jsonOutput {
 		encoder := json.NewEncoder(output)
@@ -178,10 +178,14 @@ func runLint(arguments []string, output io.Writer) error {
 	return nil
 }
 
-func withoutImplicitAtomWarnings(diagnostics []atomdown.Diagnostic) []atomdown.Diagnostic {
+// withoutStrictOnlyWarnings drops the warnings that lint reports only under
+// --strict: an implicit atom (no persistent marker) and a missing document
+// version directive. Default lint stays permissive so mixed and unversioned
+// documents still pass.
+func withoutStrictOnlyWarnings(diagnostics []atomdown.Diagnostic) []atomdown.Diagnostic {
 	filtered := make([]atomdown.Diagnostic, 0, len(diagnostics))
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Code != "implicit-atom" {
+		if diagnostic.Code != "implicit-atom" && diagnostic.Code != "missing-version-directive" {
 			filtered = append(filtered, diagnostic)
 		}
 	}

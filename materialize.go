@@ -5,9 +5,11 @@ import (
 	"fmt"
 )
 
-// Materialize inserts an explicit atom marker before every implicit atom.
-// Existing source bytes and explicit directives remain unchanged. It returns
-// the resulting Markdown and the number of markers it added.
+// Materialize inserts an explicit atom marker before every implicit atom and
+// adds the document-level version directive when the source does not already
+// declare one. Existing source bytes and explicit directives remain
+// unchanged. It returns the resulting Markdown and the number of atom
+// markers it added; adding the version directive is not counted.
 func Materialize(source []byte) ([]byte, int, error) {
 	document := Parse(source)
 	used := make(map[string]struct{}, len(document.Atoms)+len(document.Groups))
@@ -26,6 +28,14 @@ func Materialize(source []byte) ([]byte, int, error) {
 	cursor := 0
 	lineEnding := materializeLineEnding(source)
 	marked := 0
+
+	// Writers emit the document-level version directive; readers never
+	// require it. Add it once, at the very top, when the source lacks one.
+	// Never move or duplicate an existing directive.
+	if !document.Declared {
+		fmt.Fprintf(&output, "<!-- <atomdown version=%q/> -->%s", "1", lineEnding)
+	}
+
 	for _, atom := range document.Atoms {
 		if !atom.Implicit {
 			continue

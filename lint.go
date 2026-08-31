@@ -17,6 +17,13 @@ func lintDocument(document *Document, lineStarts []int) {
 			"Use version 1.", lineStarts,
 		))
 	}
+	if !document.Declared {
+		document.Diagnostics = append(document.Diagnostics, newDiagnostic(
+			"missing-version-directive", SeverityWarning,
+			"Atomdown document has no version directive.", 0,
+			"Run atomdown materialize, or add an atomdown version=\"1\" marker before the first atom.", lineStarts,
+		))
+	}
 
 	seen := make(map[string]Position)
 	for _, atom := range document.Atoms {

@@ -75,13 +75,13 @@ go run ./cmd/atomdown id
 Each file command accepts one file. Use `-` or omit the file to read standard input.
 
 - `lint` checks syntax, IDs, block associations, and groups.
-- `lint --strict` also reports unmarked top-level blocks. Default lint permits mixed documents so teams can adopt Atomdown in stages.
+- `lint --strict` also reports unmarked top-level blocks and a missing document version directive. Default lint permits mixed documents so teams can adopt Atomdown in stages.
 - `parse` writes the semantic document model as JSON.
 - `emit` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
 - `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.
-- `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
+- `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. It also adds the document version directive at the top of the file when the source does not already declare one. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
 - `id` creates an eight-character Crockford Base32 ID.
 
 ## Go library

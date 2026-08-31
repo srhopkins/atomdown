@@ -48,8 +48,37 @@ func TestImplicitAtomWarning(t *testing.T) {
 	if len(document.Atoms) != 1 || !document.Atoms[0].Implicit {
 		t.Fatalf("atoms = %#v", document.Atoms)
 	}
-	if len(document.Diagnostics) != 1 || document.Diagnostics[0].Code != "implicit-atom" {
+	// A source with no document marker also carries missing-version-directive.
+	if len(document.Diagnostics) != 2 || document.Diagnostics[0].Code != "missing-version-directive" || document.Diagnostics[1].Code != "implicit-atom" {
 		t.Fatalf("diagnostics = %#v", document.Diagnostics)
+	}
+}
+
+func TestMissingVersionDirectiveWarning(t *testing.T) {
+	document := Parse([]byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\nFirst.\n"))
+	found := false
+	for _, diagnostic := range document.Diagnostics {
+		if diagnostic.Code == "missing-version-directive" {
+			found = true
+			if diagnostic.Severity != SeverityWarning {
+				t.Fatalf("severity = %q, want warning", diagnostic.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want missing-version-directive", document.Diagnostics)
+	}
+	if document.HasErrors() {
+		t.Fatalf("missing-version-directive must be a warning, not an error: %#v", document.Diagnostics)
+	}
+}
+
+func TestDeclaredDocumentHasNoMissingVersionDirectiveWarning(t *testing.T) {
+	document := Parse([]byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nFirst.\n"))
+	for _, diagnostic := range document.Diagnostics {
+		if diagnostic.Code == "missing-version-directive" {
+			t.Fatalf("declared document should not warn: %#v", document.Diagnostics)
+		}
 	}
 }
 

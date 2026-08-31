@@ -99,6 +99,52 @@ func TestRunMaterializeWriteReportsZeroOnSecondRun(t *testing.T) {
 	}
 }
 
+func TestRunLintDefaultPassesWithNoVersionDirective(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atom id=\"4P8W2H6K\"/> -->\n\nFirst.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"lint", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("default lint must pass a document with no version directive: %v\n%s", err, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "version") {
+		t.Fatalf("default lint must not mention the missing version directive:\n%s", stdout.String())
+	}
+}
+
+func TestRunLintStrictWarnsOnMissingVersionDirective(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atom id=\"4P8W2H6K\"/> -->\n\nFirst.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"lint", "--strict", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("lint --strict warnings must not fail the command: %v\n%s", err, stderr.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "missing-version-directive") {
+		t.Fatalf("expected a missing-version-directive warning:\n%s", output)
+	}
+	if !strings.Contains(output, path+":1:1:") {
+		t.Fatalf("expected file:line:col like other diagnostics:\n%s", output)
+	}
+}
+
+func TestRunLintStrictStaysQuietWhenVersionDirectiveIsPresent(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nFirst.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"lint", "--strict", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("lint --strict failed: %v\n%s", err, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "missing-version-directive") {
+		t.Fatalf("declared document should not warn:\n%s", stdout.String())
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

@@ -1,6 +1,7 @@
 package atomdown
 
 import (
+	"bytes"
 	"regexp"
 	"testing"
 )
@@ -29,6 +30,56 @@ func TestMaterializeReportsZeroWhenNothingToDo(t *testing.T) {
 	}
 	if marked != 0 {
 		t.Fatalf("expected 0 marked blocks, got %d", marked)
+	}
+}
+
+func TestMaterializeAddsVersionDirectiveWhenMissing(t *testing.T) {
+	source := []byte("# One\n\npara two\n")
+	output, _, err := Materialize(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directivePattern := regexp.MustCompile(`(?m)^<!-- <atomdown version="1"/> -->$`)
+	matches := directivePattern.FindAllIndex(output, -1)
+	if len(matches) != 1 {
+		t.Fatalf("expected exactly one version directive, found %d:\n%s", len(matches), output)
+	}
+	atomPattern := regexp.MustCompile(`<!-- <atom id="[0-9A-HJKMNP-TV-Z]{8}"/> -->`)
+	atomIndex := atomPattern.FindIndex(output)
+	if atomIndex == nil {
+		t.Fatalf("expected an atom marker in output:\n%s", output)
+	}
+	if matches[0][0] > atomIndex[0] {
+		t.Fatalf("version directive must precede the first atom marker:\n%s", output)
+	}
+}
+
+func TestMaterializeNeverDuplicatesVersionDirective(t *testing.T) {
+	source := []byte("# One\n\npara two\n")
+	firstOutput, _, err := Materialize(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOutput, _, err := Materialize(firstOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstOutput, secondOutput) {
+		t.Fatalf("second materialize changed the file:\nfirst:\n%s\nsecond:\n%s", firstOutput, secondOutput)
+	}
+}
+
+func TestMaterializeLeavesExistingVersionDirectiveUntouched(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\" acme-profile=\"draft\"/> -->\n\npara.\n")
+	output, _, err := Materialize(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(output, []byte(`<!-- <atomdown version="1" acme-profile="draft"/> -->`)) {
+		t.Fatalf("existing version directive was altered:\n%s", output)
+	}
+	if bytes.Count(output, []byte("atomdown version=")) != 1 {
+		t.Fatalf("expected exactly one document directive:\n%s", output)
 	}
 }
 
