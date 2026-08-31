@@ -68,6 +68,8 @@ A tool can give each item of a container block, such as a list, its own atom wit
 
 Splitting this way changes the document's structure at the CommonMark level, even though the visible Markdown text is unchanged: one list becomes several single-item lists. A tool that offers this must wrap the resulting atoms in one atom-group. The group is the only record that the split was deliberate; without it, a deliberate split and an accidental one (for example, an unrelated directive that happens to land between two list items) are byte-identical. A linter should report a directive that splits a container block this way when the resulting atoms are not wrapped in a shared atom-group.
 
+This does not reach into a nested list. Splitting a list's top-level items leaves each item's own nested children inside that item's atom; a nested child is never individually addressable this way. A GFM table cannot be split by this method at all: the header row and delimiter row are structural, so a table always gets one atom and its rows are not addressable.
+
 ## XML validation model
 
 The Markdown source is not an XML document. A parser extracts Atomdown directives and creates the normalized XML model.

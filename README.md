@@ -111,6 +111,8 @@ go run ./cmd/atomdown materialize --split list-item -w criteria.md
 
 **The atom-group is load-bearing.** `--split` always wraps the split items in one `atom-group`. The group records that the items belonged to one list, and it is the only way to tell a deliberate split from an accidental one, since the two are otherwise byte-identical to a parser. `lint` warns when it finds split single-item lists that are not wrapped in a shared atom-group (`directive-splits-list`), because that pattern silently changes rendered structure without recording that the change was deliberate. Running `materialize --split list-item` again is a no-op: a list already split to one item per group is left alone.
 
+**Two limits.** A nested list item's children are not individually addressable: `--split list-item` only splits the top-level items of a list, so a parent item's atom still covers every child nested under it. A GFM table's rows are not addressable at all; a table always gets one atom for the whole table (tracked separately, see the "materialize --split table-row" issue).
+
 ## Go library
 
 Parse and validate a document:
