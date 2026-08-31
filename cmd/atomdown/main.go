@@ -227,6 +227,7 @@ func runStrip(arguments []string, output io.Writer) error {
 func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	flags := flag.NewFlagSet("materialize", flag.ContinueOnError)
 	write := flags.Bool("w", false, "write result in place")
+	split := flags.String("split", "", "comma-separated CommonMark node names to split into their own atoms (for example: list-item)")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -237,7 +238,18 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	if err != nil {
 		return err
 	}
-	result, marked, err := atomdown.Materialize(source)
+
+	var result []byte
+	var marked int
+	if *split == "" {
+		result, marked, err = atomdown.Materialize(source)
+	} else {
+		var nodeTypes []string
+		nodeTypes, err = atomdown.ParseSplitNodeTypes(*split)
+		if err == nil {
+			result, marked, err = atomdown.MaterializeSplit(source, nodeTypes)
+		}
+	}
 	if err != nil {
 		return err
 	}

@@ -145,6 +145,49 @@ func TestRunLintStrictStaysQuietWhenVersionDirectiveIsPresent(t *testing.T) {
 	}
 }
 
+func TestRunMaterializeSplitListItemWrapsGroup(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\n* one\n* two\n* three\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "--split", "list-item", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize --split failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), "<!-- <atom-group id=") {
+		t.Fatalf("expected an atom-group marker, got:\n%s", written)
+	}
+	if !strings.Contains(string(written), "<!-- </atom-group> -->") {
+		t.Fatalf("expected a closing atom-group marker, got:\n%s", written)
+	}
+}
+
+func TestRunMaterializeSplitUnknownNodeTypeNamesAcceptedValues(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "* a\n")
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"materialize", "--split", "bogus-node", "-w", path}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected an error for an unknown --split node type")
+	}
+	if !strings.Contains(err.Error(), "list-item") {
+		t.Fatalf("expected accepted values in the error, got: %v", err)
+	}
+	written, readErr := os.ReadFile(path)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(written) != "* a\n" {
+		t.Fatalf("file was modified despite the error: %q", written)
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

@@ -1,8 +1,11 @@
 package atomdown
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
-func lintDocument(document *Document, lineStarts []int) {
+func lintDocument(document *Document, lineStarts []int, listItemCounts map[int]int) {
 	if document.Declared && document.Version == "" {
 		document.Diagnostics = append(document.Diagnostics, newDiagnostic(
 			"missing-version", SeverityError,
@@ -47,6 +50,96 @@ func lintDocument(document *Document, lineStarts []int) {
 				Fix: "Add atoms to the group or remove the group markers.",
 			})
 		}
+	}
+
+	lintListStructureSplits(document, listItemCounts)
+}
+
+// listMarkerPattern matches the leading bullet or ordered-list delimiter of
+// a top-level list block's raw text. Two adjacent single-item lists using
+// the same delimiter would be one CommonMark list if nothing sat between
+// them; a captured group identifies which delimiter matched.
+var listMarkerPattern = regexp.MustCompile(`^[ \t]{0,3}(?:([*+-])|[0-9]{1,9}([.)]))[ \t]`)
+
+func listMarkerKey(text string) (string, bool) {
+	match := listMarkerPattern.FindStringSubmatch(text)
+	if match == nil {
+		return "", false
+	}
+	if match[1] != "" {
+		return "bullet:" + match[1], true
+	}
+	return "ordered:" + match[2], true
+}
+
+func isSingleItemListAtom(atom Atom, listItemCounts map[int]int) bool {
+	if atom.NodeType != "List" {
+		return false
+	}
+	count, ok := listItemCounts[atom.Content.Start.Offset]
+	return ok && count == 1
+}
+
+// lintListStructureSplits finds a directive sitting between two adjacent
+// list items that would otherwise be one CommonMark list. Two top-level
+// atoms can only be single-item lists with nothing between them in the
+// Atoms slice when something occupying its own block (an Atomdown
+// directive) interrupted a single list while parsing; nothing else can
+// produce that layout. materialize --split list-item produces exactly this
+// layout deliberately and wraps it in one atom-group, so a run fully
+// covered by one shared, non-empty group ID is not reported.
+//
+// This is a default-lint warning, not --strict-only and not an error. It is
+// visible by default because it is a defect independent of partial
+// Atomdown adoption (unlike an implicit atom): the rendered HTML silently
+// changes from one <ul> to several. It stays a warning, not an error,
+// because Atomdown's default lint philosophy is to stay permissive so
+// mixed and partially-adopted documents keep passing; this diagnostic
+// never causes lint to exit non-zero.
+func lintListStructureSplits(document *Document, listItemCounts map[int]int) {
+	atoms := document.Atoms
+	for i := 0; i < len(atoms); {
+		if !isSingleItemListAtom(atoms[i], listItemCounts) {
+			i++
+			continue
+		}
+		marker, ok := listMarkerKey(atoms[i].Text)
+		if !ok {
+			i++
+			continue
+		}
+
+		runStart := i
+		sameGroup := atoms[i].GroupID != ""
+		groupID := atoms[i].GroupID
+		j := i + 1
+		for j < len(atoms) && isSingleItemListAtom(atoms[j], listItemCounts) {
+			otherMarker, ok := listMarkerKey(atoms[j].Text)
+			if !ok || otherMarker != marker {
+				break
+			}
+			if atoms[j].GroupID == "" || atoms[j].GroupID != groupID {
+				sameGroup = false
+			}
+			j++
+		}
+
+		if runLength := j - runStart; runLength >= 2 && !sameGroup {
+			position := atoms[runStart+1].Content.Start
+			if atoms[runStart+1].Marker != nil {
+				position = atoms[runStart+1].Marker.Start
+			}
+			document.Diagnostics = append(document.Diagnostics, Diagnostic{
+				Code: "directive-splits-list", Severity: SeverityWarning,
+				Message: fmt.Sprintf(
+					"A directive between list items splits one list into %d single-item lists, changing the document's rendered block structure.",
+					runLength,
+				),
+				Position: position,
+				Fix:      "Wrap the items in one atom-group (materialize --split list-item does this) to make the split deliberate.",
+			})
+		}
+		i = j
 	}
 }
 

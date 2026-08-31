@@ -12,17 +12,7 @@ import (
 // markers it added; adding the version directive is not counted.
 func Materialize(source []byte) ([]byte, int, error) {
 	document := Parse(source)
-	used := make(map[string]struct{}, len(document.Atoms)+len(document.Groups))
-	for _, atom := range document.Atoms {
-		if atom.ID != "" {
-			used[atom.ID] = struct{}{}
-		}
-	}
-	for _, group := range document.Groups {
-		if group.ID != "" {
-			used[group.ID] = struct{}{}
-		}
-	}
+	used := usedIDs(document)
 
 	var output bytes.Buffer
 	cursor := 0
@@ -55,6 +45,23 @@ func Materialize(source []byte) ([]byte, int, error) {
 	}
 	output.Write(source[cursor:])
 	return output.Bytes(), marked, nil
+}
+
+// usedIDs collects every atom and atom-group ID already present in a parsed
+// document, so a caller minting new IDs never collides with an existing one.
+func usedIDs(document Document) map[string]struct{} {
+	used := make(map[string]struct{}, len(document.Atoms)+len(document.Groups))
+	for _, atom := range document.Atoms {
+		if atom.ID != "" {
+			used[atom.ID] = struct{}{}
+		}
+	}
+	for _, group := range document.Groups {
+		if group.ID != "" {
+			used[group.ID] = struct{}{}
+		}
+	}
+	return used
 }
 
 func newUniqueID(used map[string]struct{}) (string, error) {

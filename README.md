@@ -69,12 +69,13 @@ go run ./cmd/atomdown tokens testdata/example.md
 go run ./cmd/atomdown xml testdata/example.md
 go run ./cmd/atomdown strip testdata/example.md
 go run ./cmd/atomdown materialize testdata/example.md
+go run ./cmd/atomdown materialize --split list-item testdata/example.md
 go run ./cmd/atomdown id
 ```
 
 Each file command accepts one file. Use `-` or omit the file to read standard input.
 
-- `lint` checks syntax, IDs, block associations, and groups.
+- `lint` checks syntax, IDs, block associations, and groups. It also reports a directive that silently changed the document's rendered block structure (see `--split` below).
 - `lint --strict` also reports unmarked top-level blocks and a missing document version directive. Default lint permits mixed documents so teams can adopt Atomdown in stages.
 - `parse` writes the semantic document model as JSON.
 - `emit` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
@@ -82,7 +83,33 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.
 - `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. It also adds the document version directive at the top of the file when the source does not already declare one. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
+- `materialize --split <node-types>` gives finer granularity than one atom per top-level block. `<node-types>` is a comma-separated list of CommonMark node names; today only `list-item` is accepted. An unknown name exits non-zero and names the accepted values. See "Splitting a list into per-item atoms" below before you use it.
 - `id` creates an eight-character Crockford Base32 ID.
+
+### Splitting a list into per-item atoms
+
+By default `materialize` marks one atom per top-level block, so a bullet list of six items gets one atom for the whole list. Review workflows often want to address a single bullet. `materialize --split list-item` does this:
+
+```bash
+go run ./cmd/atomdown materialize --split list-item -w criteria.md
+```
+
+```markdown
+<!-- <atomdown version="1"/> -->
+
+<!-- <atom-group id="KF53ASNE"> -->
+<!-- <atom id="FAPWJSRC"/> -->
+* A failed charge retries a maximum of three times.
+<!-- <atom id="GPG5QA7A"/> -->
+* Retries use exponential backoff starting at 30 seconds.
+<!-- </atom-group> -->
+```
+
+**How it works.** Atomdown never puts a directive inside a container block such as a list item; SPEC.md forbids it. Instead, a directive sits on its own line between two adjacent items with no blank line, which is enough to end one CommonMark list and start the next. Each item becomes its own top-level list with its own atom. Visible Markdown text does not change; `strip` still reconstructs the original file byte for byte.
+
+**The tradeoff.** Splitting turns one list into N single-item lists. Rendered HTML changes from one `<ul>` with N `<li>` elements to N separate `<ul>` elements, one per item; spacing and what a screen reader announces both change. Nothing else about the document changes. This is why `--split` is opt-in, never the default.
+
+**The atom-group is load-bearing.** `--split` always wraps the split items in one `atom-group`. The group records that the items belonged to one list, and it is the only way to tell a deliberate split from an accidental one, since the two are otherwise byte-identical to a parser. `lint` warns when it finds split single-item lists that are not wrapped in a shared atom-group (`directive-splits-list`), because that pattern silently changes rendered structure without recording that the change was deliberate. Running `materialize --split list-item` again is a no-op: a list already split to one item per group is left alone.
 
 ## Go library
 

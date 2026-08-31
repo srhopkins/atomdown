@@ -41,10 +41,11 @@ type byteRange struct {
 }
 
 type markdownBlock struct {
-	start    int
-	end      int
-	nodeType string
-	isMarker bool
+	start     int
+	end       int
+	nodeType  string
+	isMarker  bool
+	itemCount int
 }
 
 // Parse builds an Atomdown document model from Markdown source.
@@ -52,6 +53,12 @@ func Parse(source []byte) Document {
 	lineStarts := sourceLineStarts(source)
 	directives, diagnostics := scanDirectives(source, lineStarts)
 	blocks := scanMarkdownBlocks(source, directives)
+	listItemCounts := make(map[int]int, len(blocks))
+	for _, block := range blocks {
+		if block.nodeType == "List" {
+			listItemCounts[block.start] = block.itemCount
+		}
+	}
 
 	document := Document{Atoms: make([]Atom, 0), Diagnostics: diagnostics}
 	for _, item := range directives {
@@ -130,7 +137,7 @@ func Parse(source []byte) Document {
 		return document.Atoms[left].Content.Start.Offset < document.Atoms[right].Content.Start.Offset
 	})
 	applyGroups(&document, directives, lineStarts)
-	lintDocument(&document, lineStarts)
+	lintDocument(&document, lineStarts, listItemCounts)
 	return document
 }
 
@@ -315,7 +322,13 @@ func scanMarkdownBlocks(source []byte, directives []directive) []markdownBlock {
 			continue
 		}
 		start = sourceLineStart(source, start)
-		blocks = append(blocks, markdownBlock{start: start, nodeType: node.Kind().String()})
+		itemCount := 0
+		if node.Kind() == ast.KindList {
+			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+				itemCount++
+			}
+		}
+		blocks = append(blocks, markdownBlock{start: start, nodeType: node.Kind().String(), itemCount: itemCount})
 	}
 	for index := range blocks {
 		end := len(source)

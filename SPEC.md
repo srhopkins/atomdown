@@ -62,6 +62,12 @@ An unmarked top-level Markdown block is an implicit atom. A tool must not discar
 
 A tool can materialize an implicit atom. The tool inserts an atom marker with a new ID.
 
+### Splitting a container block into per-item atoms
+
+A tool can give each item of a container block, such as a list, its own atom without putting a directive inside the container. It places a directive on its own source line between two adjacent items instead. Nothing in this Core requires a blank line around that directive; a directive there ends the current top-level CommonMark list and starts a new one, so each remaining item becomes its own top-level list with its own atom. This does not relax the rule above: the directive still sits between top-level blocks, never inside one.
+
+Splitting this way changes the document's structure at the CommonMark level, even though the visible Markdown text is unchanged: one list becomes several single-item lists. A tool that offers this must wrap the resulting atoms in one atom-group. The group is the only record that the split was deliberate; without it, a deliberate split and an accidental one (for example, an unrelated directive that happens to land between two list items) are byte-identical. A linter should report a directive that splits a container block this way when the resulting atoms are not wrapped in a shared atom-group.
+
 ## XML validation model
 
 The Markdown source is not an XML document. A parser extracts Atomdown directives and creates the normalized XML model.
