@@ -1,6 +1,7 @@
 package atomdown
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -135,5 +136,54 @@ func TestEmitRejectsDiscontiguousGroup(t *testing.T) {
 	}
 	if _, err := Emit(document); err == nil {
 		t.Fatal("expected discontiguous group error")
+	}
+}
+
+// TestEmitRegeneratesIDOnCollision proves Emit mints IDs through the checked
+// path rather than calling NewID directly. Emit previously bypassed the
+// uniqueness check, so a regression here is silent: real 40-bit IDs never
+// collide inside one test run, and every other emit test would still pass.
+func TestEmitRegeneratesIDOnCollision(t *testing.T) {
+	original := generateID
+	defer func() { generateID = original }()
+
+	// Hand out the same ID twice, then a distinct one. An unchecked Emit
+	// assigns the duplicate to both atoms; a checked Emit skips it.
+	queue := []string{"AAAAAAA1", "AAAAAAA1", "BBBBBBB2"}
+	index := 0
+	generateID = func() (string, error) {
+		if index >= len(queue) {
+			return "", errors.New("test generator exhausted")
+		}
+		id := queue[index]
+		index++
+		return id, nil
+	}
+
+	document := Document{Atoms: []Atom{{Text: "First."}, {Text: "Second."}}}
+	output, err := Emit(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ids := regexp.MustCompile(`<atom id="([0-9A-HJKMNP-TV-Z]{8})"`).FindAllStringSubmatch(string(output), -1)
+	if len(ids) != 2 {
+		t.Fatalf("expected 2 atom ids, got %d:\n%s", len(ids), output)
+	}
+	if ids[0][1] == ids[1][1] {
+		t.Fatalf("Emit assigned the same id twice (%s); it is not using the collision-checked path:\n%s", ids[0][1], output)
+	}
+}
+
+// TestEmitErrorsWhenCollisionRetriesAreExhausted proves Emit surfaces a clear
+// error rather than looping forever when every generated ID collides.
+func TestEmitErrorsWhenCollisionRetriesAreExhausted(t *testing.T) {
+	original := generateID
+	defer func() { generateID = original }()
+	generateID = func() (string, error) { return "AAAAAAA1", nil }
+
+	document := Document{Atoms: []Atom{{Text: "First."}, {Text: "Second."}}}
+	if _, err := Emit(document); err == nil {
+		t.Fatal("expected an error when every generated id collides")
 	}
 }
