@@ -292,8 +292,11 @@ func TestStripPreservesMarkdown(t *testing.T) {
 }
 
 func TestStripRemovesWholeDirectiveLine(t *testing.T) {
+	// Both directives sit at the top of the document with only blank-line
+	// scaffolding between and after them, so no blank line survives: there
+	// is no preceding block for one to separate from.
 	source := []byte("<!-- <atomdown version=\"1\"/> -->\r\n\r\n<!-- <atom id=\"4P8W2H6K\"/> -->\r\nParagraph.\r\n")
-	want := "\r\nParagraph.\r\n"
+	want := "Paragraph.\r\n"
 	if got := string(Strip(source)); got != want {
 		t.Fatalf("Strip() = %q, want %q", got, want)
 	}
@@ -313,7 +316,11 @@ func TestDirectiveInsideFencedCodeIsMarkdown(t *testing.T) {
 		t.Fatalf("atoms = %#v", document.Atoms)
 	}
 
-	wantStripped := "```markdown\n<!-- <atom id=\"4P8W2H6K\"/> -->\n```\n\n\nParagraph.\n"
+	// The two blank lines around the real directive (line 5) are pure
+	// scaffolding for a directive that no longer exists, so they collapse to
+	// the one blank line CommonMark needs to separate the fenced code block
+	// from the paragraph.
+	wantStripped := "```markdown\n<!-- <atom id=\"4P8W2H6K\"/> -->\n```\n\nParagraph.\n"
 	if got := string(Strip(source)); got != wantStripped {
 		t.Fatalf("Strip() = %q, want %q", got, wantStripped)
 	}
@@ -323,6 +330,78 @@ func TestDirectiveInsideFencedCodeIsMarkdown(t *testing.T) {
 		if token.Kind == TokenDirective && token.Directive.ID == "4P8W2H6K" {
 			t.Fatalf("fenced code became a directive token: %#v", token)
 		}
+	}
+}
+
+func TestStripLeavesNoLeadingBlankLine(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n")
+	want := "Paragraph.\n"
+	if got := string(Strip(source)); got != want {
+		t.Fatalf("Strip() = %q, want %q", got, want)
+	}
+}
+
+func TestStripLeavesNoTrailingBlankLine(t *testing.T) {
+	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n\n<!-- </atom-group> -->")
+	want := "Paragraph.\n"
+	if got := string(Strip(source)); got != want {
+		t.Fatalf("Strip() = %q, want %q", got, want)
+	}
+}
+
+func TestStripCollapsesDirectiveScaffoldingToOneBlankLine(t *testing.T) {
+	source := []byte("First.\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nSecond.\n")
+	want := "First.\n\nSecond.\n"
+	if got := string(Strip(source)); got != want {
+		t.Fatalf("Strip() = %q, want %q", got, want)
+	}
+}
+
+func TestStripPreservesADeliberateDoubleBlankLine(t *testing.T) {
+	// The double blank line here is the author's own and sits nowhere near
+	// a directive, so it must survive: removing it could turn a loose list
+	// tight and change the rendered HTML.
+	source := []byte("First.\n\n\nSecond, deliberately separated by two blank lines.\n")
+	if got := string(Strip(source)); got != string(source) {
+		t.Fatalf("Strip() = %q, want source unchanged %q", got, source)
+	}
+}
+
+func TestStripRemovesTrailingSpacesOnADirectiveLine(t *testing.T) {
+	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->   \n\nParagraph.\n")
+	want := "Paragraph.\n"
+	if got := string(Strip(source)); got != want {
+		t.Fatalf("Strip() = %q, want %q", got, want)
+	}
+}
+
+func TestStripRemovesLeadingSpacesBeforeADirective(t *testing.T) {
+	source := []byte("   <!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n")
+	want := "Paragraph.\n"
+	if got := string(Strip(source)); got != want {
+		t.Fatalf("Strip() = %q, want %q", got, want)
+	}
+}
+
+func TestStripAfterMaterializeIsByteExactForCRLFDocument(t *testing.T) {
+	original := []byte("# Title\r\n\r\nPara one.\r\n\r\nPara two.\r\n")
+	materialized, _, err := Materialize(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Strip(materialized); string(got) != string(original) {
+		t.Fatalf("Strip(Materialize(original)) = %q, want original %q", got, original)
+	}
+}
+
+func TestStripAfterMaterializeSplitIsByteExact(t *testing.T) {
+	original := []byte("* one\n* two\n* three\n")
+	split, _, err := MaterializeSplit(original, []string{"list-item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Strip(split); string(got) != string(original) {
+		t.Fatalf("Strip(MaterializeSplit(original)) = %q, want original %q", got, original)
 	}
 }
 
