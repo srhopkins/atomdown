@@ -101,6 +101,21 @@
       }
     },
     {
+      "name": "mixed-accidental-list-split",
+      "category": "mixed",
+      "input": "../testdata/mixed/accidental-list-split.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "atom_ids": ["4P8W2H6K", "9R3C7M5D"],
+        "diagnostic_codes": ["directive-splits-list"],
+        "xml_file": "expected/mixed-accidental-list-split.xml",
+        "strip_file": "expected/mixed-accidental-list-split.stripped.md"
+      }
+    },
+    {
       "name": "mixed-complex-markdown",
       "category": "mixed",
       "input": "../testdata/mixed/complex-markdown.md",
