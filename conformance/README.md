@@ -26,7 +26,7 @@ The binary name does not matter. The command interface must match this contract.
 <bin> <command> [options] [file|-]
 ```
 
-`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `id`.
+`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `id`. The Go CLI also has `emit` and `materialize`; this suite does not cover them because both write output back (`emit` reconstructs Markdown from edited `parse` JSON, `materialize` rewrites the source file), which is out of scope for a read-only conformance check.
 
 File commands accept at most one file. Use `-` or omit the file to read standard input.
 
@@ -36,7 +36,7 @@ Commands write the result to standard output. Usage and I/O errors go to standar
 
 - `parse` writes the document model as JSON. Use `--compact` for one-line JSON.
 - `tokens` writes the lossless token stream as JSON. Use `--compact` for one-line JSON.
-- `lint` checks the document. Use `--json` to write a JSON array of diagnostics. Use `--strict` to include `implicit-atom` warnings. Default `lint` hides `implicit-atom`.
+- `lint` checks the document. Use `--json` to write a JSON array of diagnostics. Use `--strict` to include `implicit-atom` and `missing-version-directive` warnings. Default `lint` hides both. Default `lint` still reports `directive-splits-list`; that warning is not gated by `--strict`.
 - `xml` writes the normalized XML metadata model. It refuses a document that has error-severity diagnostics.
 - `strip` removes Atomdown directives and writes visible Markdown.
 - `id` writes one new eight-character Crockford Base32 ID. Use `-n N` to write N IDs, one per line.
@@ -70,7 +70,7 @@ Each diagnostic object has `code` (string) and `severity` (`error` or `warning`)
 
 The command writes a JSON array of diagnostic objects. An empty result may be `[]` or `null`. Treat both as no diagnostics.
 
-Default `lint --json` drops `implicit-atom` warnings. Pass `--strict` to keep them.
+Default `lint --json` drops `implicit-atom` and `missing-version-directive` warnings. Pass `--strict` to keep them. `directive-splits-list` is not affected by `--strict`; it appears in default output too.
 
 ## Manifest format (`cases.json`)
 

@@ -23,7 +23,7 @@ Editing rules:
 6. Keep group markers balanced. Atomdown Core 1 does not permit nested groups.
 7. Run `atomdown lint FILE` after you edit a document.
 
-Default lint permits implicit atoms so a document can mix marked and unmarked blocks. Use `atomdown lint --strict FILE` to report implicit atoms.
+Default lint permits implicit atoms and a missing document version directive, so a document can mix marked and unmarked blocks. Use `atomdown lint --strict FILE` to report both. Default lint always reports `directive-splits-list`, a directive that silently splits one list into several (see `--split` below); `--strict` does not gate this one.
 
 ## Standard
 
@@ -48,12 +48,15 @@ atomdown lint --json FILE
 atomdown xml FILE
 atomdown strip FILE
 atomdown materialize FILE
+atomdown materialize --split list-item FILE
 atomdown id
 ```
 
 `atomdown emit FILE` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
 
-`atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom. Use `atomdown materialize -w FILE` to update the file in place.
+`atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom, and adds the document version directive at the top when the source has none. Use `atomdown materialize -w FILE` to update the file in place.
+
+`atomdown materialize --split list-item FILE` splits a list into one atom per item instead of one atom for the whole list, wrapped in an atom-group. This changes rendered HTML (one list becomes several), so it is opt-in.
 
 ## Optional
 

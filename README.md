@@ -10,13 +10,12 @@ Atomdown uses XML-shaped directives inside HTML comments:
 
 ```markdown
 <!-- <atomdown version="1"/> -->
-
 <!-- <atom id="4P8W2H6K" slug="launch-claim"/> -->
 
 The product launched in March.
 ```
 
-Normal Markdown tools treat each directive as an invisible comment. Atomdown tools read the same directive as block metadata.
+Normal Markdown tools treat each directive as an invisible comment. Atomdown tools read the same directive as block metadata. This holds for every directive placement except one: deliberately splitting a list with `--split` (see the tradeoff under "Splitting a list into per-item atoms" below), which does change the rendered HTML on purpose.
 
 ## Why Atomdown
 
@@ -33,6 +32,8 @@ Core defines only `version`, `id`, and `slug`. Applications extend Atomdown with
 
 ```markdown
 <!-- <atom id="4P8W2H6K" acme-owner="research"/> -->
+
+The product launched in March.
 ```
 
 The `acme-owner` attribute is an application-defined example. It is not part of Atomdown Core. Core tools preserve it and do not interpret it.
@@ -96,11 +97,10 @@ go run ./cmd/atomdown materialize --split list-item -w criteria.md
 
 ```markdown
 <!-- <atomdown version="1"/> -->
-
-<!-- <atom-group id="KF53ASNE"> -->
-<!-- <atom id="FAPWJSRC"/> -->
+<!-- <atom-group id="KGB6SPB0"> -->
+<!-- <atom id="WME9C5F7"/> -->
 * A failed charge retries a maximum of three times.
-<!-- <atom id="GPG5QA7A"/> -->
+<!-- <atom id="2H55ECG6"/> -->
 * Retries use exponential backoff starting at 30 seconds.
 <!-- </atom-group> -->
 ```
