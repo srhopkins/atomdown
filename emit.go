@@ -10,10 +10,15 @@ import (
 // Emit reconstructs canonical marked Markdown from a parsed document model.
 // Parse-only fields such as positions, node types, and diagnostics are ignored.
 func Emit(document Document) ([]byte, error) {
+	// Collect every ID already present before minting any new one, so a
+	// generated atom or group ID never collides with one the document
+	// already has.
+	used := usedIDs(document)
+
 	atoms := append([]Atom(nil), document.Atoms...)
 	for index := range atoms {
 		if !atoms[index].Implicit && atoms[index].ID == "" {
-			id, err := NewID()
+			id, err := newUniqueID(used)
 			if err != nil {
 				return nil, err
 			}
@@ -25,7 +30,7 @@ func Emit(document Document) ([]byte, error) {
 	groupByID := make(map[string]int, len(groups))
 	for index := range groups {
 		if groups[index].ID == "" {
-			id, err := NewID()
+			id, err := newUniqueID(used)
 			if err != nil {
 				return nil, err
 			}

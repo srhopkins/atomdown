@@ -64,9 +64,27 @@ func usedIDs(document Document) map[string]struct{} {
 	return used
 }
 
+// generateID is the ID source every call to newUniqueID draws from.
+// Production code always uses NewID; a test overrides this package-level
+// variable to force a deterministic collision and prove newUniqueID
+// recovers from it, since 40 real random bits will never collide inside a
+// single test run. Restore the original value (via defer) before the test
+// returns.
+var generateID = NewID
+
+// maxIDCollisionRetries bounds newUniqueID's retry loop. A real collision
+// against 40 random bits is astronomically unlikely within one document, so
+// this bound exists only so a pathological generator (or a test forcing
+// every attempt to collide) fails with a clear error instead of looping
+// forever.
+const maxIDCollisionRetries = 100
+
+// newUniqueID mints an ID that is not already in used, regenerating on
+// collision up to maxIDCollisionRetries times, and records the returned ID
+// in used so a subsequent call in the same batch also avoids it.
 func newUniqueID(used map[string]struct{}) (string, error) {
-	for {
-		id, err := NewID()
+	for attempt := 0; attempt < maxIDCollisionRetries; attempt++ {
+		id, err := generateID()
 		if err != nil {
 			return "", err
 		}
@@ -76,6 +94,7 @@ func newUniqueID(used map[string]struct{}) (string, error) {
 		used[id] = struct{}{}
 		return id, nil
 	}
+	return "", fmt.Errorf("generate unique Atomdown ID: exhausted %d attempts against %d existing IDs", maxIDCollisionRetries, len(used))
 }
 
 func materializeLineEnding(source []byte) string {
