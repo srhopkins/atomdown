@@ -6,8 +6,9 @@ import (
 )
 
 // Materialize inserts an explicit atom marker before every implicit atom.
-// Existing source bytes and explicit directives remain unchanged.
-func Materialize(source []byte) ([]byte, error) {
+// Existing source bytes and explicit directives remain unchanged. It returns
+// the resulting Markdown and the number of markers it added.
+func Materialize(source []byte) ([]byte, int, error) {
 	document := Parse(source)
 	used := make(map[string]struct{}, len(document.Atoms)+len(document.Groups))
 	for _, atom := range document.Atoms {
@@ -24,24 +25,26 @@ func Materialize(source []byte) ([]byte, error) {
 	var output bytes.Buffer
 	cursor := 0
 	lineEnding := materializeLineEnding(source)
+	marked := 0
 	for _, atom := range document.Atoms {
 		if !atom.Implicit {
 			continue
 		}
 		offset := atom.Content.Start.Offset
 		if offset < cursor || offset > len(source) {
-			return nil, fmt.Errorf("materialize atom at invalid offset %d", offset)
+			return nil, 0, fmt.Errorf("materialize atom at invalid offset %d", offset)
 		}
 		id, err := newUniqueID(used)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		output.Write(source[cursor:offset])
 		fmt.Fprintf(&output, "<!-- <atom id=%q/> -->%s", id, lineEnding)
 		cursor = offset
+		marked++
 	}
 	output.Write(source[cursor:])
-	return output.Bytes(), nil
+	return output.Bytes(), marked, nil
 }
 
 func newUniqueID(used map[string]struct{}) (string, error) {

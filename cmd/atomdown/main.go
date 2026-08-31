@@ -7,9 +7,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/srhopkins/atomdown"
 )
+
+// cliVersion is the atomdown command-line tool's own version. It is
+// independent of the Atomdown Core document version ("1") that atoms declare.
+const cliVersion = "0.1.0"
+
+// commandNames lists every command the CLI accepts, in the order printUsage
+// and the unknown-command message present them.
+var commandNames = []string{"parse", "emit", "tokens", "lint", "xml", "strip", "materialize", "id"}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -24,8 +33,9 @@ func main() {
 
 func run(arguments []string, stdout, stderr io.Writer) error {
 	if len(arguments) == 0 {
-		printUsage(stderr)
-		return errors.New("missing command")
+		fmt.Fprintln(stderr, "atomdown: missing command")
+		printVersionAndCommands(stderr)
+		return exitError{code: 2}
 	}
 	switch arguments[0] {
 	case "parse":
@@ -41,15 +51,25 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	case "strip":
 		return runStrip(arguments[1:], stdout)
 	case "materialize":
-		return runMaterialize(arguments[1:], stdout)
+		return runMaterialize(arguments[1:], stdout, stderr)
 	case "id":
 		return runID(arguments[1:], stdout)
 	case "help", "-h", "--help":
 		printUsage(stdout)
 		return nil
 	default:
-		return fmt.Errorf("unknown command %q", arguments[0])
+		fmt.Fprintf(stderr, "atomdown: unknown command %q\n", arguments[0])
+		printVersionAndCommands(stderr)
+		return exitError{code: 2}
 	}
+}
+
+// printVersionAndCommands reports the CLI version and every known command.
+// It runs after a missing or unknown command, so an operator can tell
+// whether they are holding a stale binary without reading the source.
+func printVersionAndCommands(output io.Writer) {
+	fmt.Fprintf(output, "atomdown version %s\n", cliVersion)
+	fmt.Fprintf(output, "commands: %s\n", strings.Join(commandNames, ", "))
 }
 
 func runEmit(arguments []string, output io.Writer) error {
@@ -200,7 +220,7 @@ func runStrip(arguments []string, output io.Writer) error {
 	return err
 }
 
-func runMaterialize(arguments []string, output io.Writer) error {
+func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	flags := flag.NewFlagSet("materialize", flag.ContinueOnError)
 	write := flags.Bool("w", false, "write result in place")
 	if err := flags.Parse(arguments); err != nil {
@@ -213,19 +233,40 @@ func runMaterialize(arguments []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	result, err := atomdown.Materialize(source)
+	result, marked, err := atomdown.Materialize(source)
 	if err != nil {
 		return err
 	}
 	if !*write {
+		// stdout must carry only the marked Markdown, so the status line
+		// goes to stderr here and is never interleaved with piped output.
 		_, err = output.Write(result)
-		return err
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(statusOutput, materializeSummary(marked))
+		return nil
 	}
 	info, err := os.Stat(flags.Args()[0])
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(flags.Args()[0], result, info.Mode().Perm())
+	if err := os.WriteFile(flags.Args()[0], result, info.Mode().Perm()); err != nil {
+		return err
+	}
+	fmt.Fprintln(statusOutput, materializeSummary(marked))
+	return nil
+}
+
+func materializeSummary(marked int) string {
+	switch marked {
+	case 0:
+		return "ok - no unmarked blocks"
+	case 1:
+		return "ok - marked 1 block"
+	default:
+		return fmt.Sprintf("ok - marked %d blocks", marked)
+	}
 }
 
 func runID(arguments []string, output io.Writer) error {
