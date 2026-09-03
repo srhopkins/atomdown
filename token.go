@@ -128,9 +128,12 @@ func publicDirective(item directive) DirectiveToken {
 // Strip returns the pure Markdown projection. It removes only recognized,
 // valid Atomdown directive lines and preserves all non-directive content.
 //
-// A removed directive takes its whole line with it, including any leading
-// or trailing whitespace on that line, so trailing spaces after "-->" never
-// leave a whitespace-only line behind. Strip also removes the blank-line
+// A removed directive takes its whole line span with it, including any
+// leading or trailing whitespace on those lines, so trailing spaces after
+// "-->" never leave a whitespace-only line behind. A directive that wraps
+// across several source lines loses every line it spans, so stripping a
+// wrapped directive produces the same bytes as stripping the equivalent
+// single-line directive. Strip also removes the blank-line
 // scaffolding a directive leaves when it sat between two blank lines used
 // only to separate it from its neighbors: a run of blank lines introduced
 // solely by removed directives collapses to at most one, and to none at the
@@ -144,7 +147,14 @@ func Strip(source []byte) []byte {
 	lines := splitSourceLines(source, lineStarts)
 	removedLine := make([]bool, len(lines))
 	for _, item := range directives {
-		removedLine[lineIndexForOffset(lineStarts, item.rawRange.start)] = true
+		// A directive may wrap across several source lines. rawRange.end is
+		// the offset just past "-->", so the last spanned line is the one
+		// holding its final byte.
+		first := lineIndexForOffset(lineStarts, item.rawRange.start)
+		last := lineIndexForOffset(lineStarts, item.rawRange.end-1)
+		for index := first; index <= last && index < len(lines); index++ {
+			removedLine[index] = true
+		}
 	}
 
 	blank := make([]bool, len(lines))
