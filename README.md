@@ -38,6 +38,22 @@ The product launched in March.
 
 The `acme-owner` attribute is an application-defined example. It is not part of Atomdown Core. Core tools preserve it and do not interpret it.
 
+A directive with many attributes can wrap across several source lines, so a long attribute list stays readable in an editor and in a diff:
+
+```markdown
+<!--
+  <atom
+    id="4P8W2H6K"
+    slug="launch-claim"
+    acme-owner="research"
+  />
+-->
+
+The product launched in March.
+```
+
+Only whitespace can share the directive's first line before `<!--` or its last line after `-->`. Whitespace inside a directive carries no meaning, because a content digest covers the atom's block only and never the directive, so wrapping or unwrapping a directive changes nothing a tool reads. See SPEC.md "Core directives" for the rule and the reasoning behind it.
+
 Atomdown Core 1 is an early specification. Use the current syntax and conformance corpus for experiments and review.
 
 ## Design
@@ -109,7 +125,7 @@ go run ./cmd/atomdown materialize --split list-item -w criteria.md
 <!-- </atom-group> -->
 ```
 
-**How it works.** Atomdown never puts a directive inside a container block such as a list item; SPEC.md forbids it. Instead, a directive sits on its own line between two adjacent items with no blank line, which is enough to end one CommonMark list and start the next. Each item becomes its own top-level list with its own atom. Visible Markdown text does not change; `strip` still reconstructs the original file byte for byte.
+**How it works.** Atomdown never puts a directive inside a container block such as a list item; SPEC.md forbids it. Instead, a directive sits on its own line or lines between two adjacent items with no blank line, which is enough to end one CommonMark list and start the next. Each item becomes its own top-level list with its own atom. Visible Markdown text does not change; `strip` still reconstructs the original file byte for byte.
 
 **The tradeoff.** Splitting turns one list into N single-item lists. Rendered HTML changes from one `<ul>` with N `<li>` elements to N separate `<ul>` elements, one per item; spacing and what a screen reader announces both change. Nothing else about the document changes. This is why `--split` is opt-in, never the default.
 

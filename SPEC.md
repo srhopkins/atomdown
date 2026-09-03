@@ -26,7 +26,25 @@ A feature does not belong in Core when the feature violates an earlier requireme
 
 The `atomdown` and `atom` directives are self-closing. The `atom-group` directive has an opening marker and a closing marker.
 
-Each directive must occupy one source line. Only whitespace can occur before `<!--` or after `-->`.
+A directive can span more than one source line. Only whitespace can occur before `<!--` on the directive's first line and after `-->` on its last line. No other content can occur on any line the directive spans. The comment can contain whitespace anywhere inside it, and nothing else besides the one directive element.
+
+These two examples are equivalent. A tool must treat them identically:
+
+```markdown
+<!-- <atom id="4P8W2H6K" slug="claim" acme-approved-by="ada"/> -->
+
+<!--
+  <atom
+    id="4P8W2H6K"
+    slug="claim"
+    acme-approved-by="ada"
+  />
+-->
+```
+
+**Why wrapping is allowed.** A directive holds an open-ended attribute list, because Core preserves unknown attributes for extensions. One line therefore has no length limit, and a long line is hard for a person to read and hard to review in a diff. Wrapping costs nothing, because a directive is not visible Markdown: a Markdown renderer treats the whole comment as one comment whether it holds one line or ten, and an Atomdown parser reads the comment body as XML, which permits a line break between attributes already. Nothing in Core reads a directive positionally, so no rule needs the directive to fit on one line.
+
+**Why other content on a spanned line is still an error.** The line before and the line after a directive are ordinary Markdown, and a directive attaches to the next top-level block. Content sharing a line with the directive makes that attachment ambiguous and can change the rendered HTML: the same bytes become part of a paragraph rather than a comment. This is the `inline-directive` rule, and wrapping does not relax it. Content inside the comment that is not part of the directive element is a separate error, reported as `extra-directive-content`, because a reader cannot tell whether it is a forgotten attribute, a second directive, or a note. A tool must not guess.
 
 Do not put a directive inside another Markdown block. Examples include paragraphs, lists, code fences, tables, and block quotes.
 
@@ -63,9 +81,15 @@ require a schema change.
 source bytes from the first byte of the block's first line through the
 last byte of the block's last line, with two exclusions:
 
-- The atom's own directive line is excluded. The digest is computed before
-  the directive is written, and writing the digest into the directive must
-  not change the bytes that produced it.
+- The atom's own directive lines are excluded, every line the directive
+  spans. The digest is computed before the directive is written, and writing
+  the digest into the directive must not change the bytes that produced it.
+  The digest is therefore block-only: no byte of a directive is ever hashed,
+  not its text and not its whitespace. This is what makes directive
+  whitespace semantically irrelevant. Two documents that differ only in
+  whitespace inside a directive produce the identical parse result and the
+  identical digest for every atom, so a person or a tool can wrap or unwrap
+  a directive without producing phantom drift.
 - The block's trailing line-ending characters, and the blank line that
   separates the block from whatever follows, are excluded. A digest never
   covers bytes outside the block itself.
@@ -131,7 +155,7 @@ A tool can materialize an implicit atom. The tool inserts an atom marker with a 
 
 ### Splitting a container block into per-item atoms
 
-A tool can give each item of a container block, such as a list, its own atom without putting a directive inside the container. It places a directive on its own source line between two adjacent items instead. Nothing in this Core requires a blank line around that directive; a directive there ends the current top-level CommonMark list and starts a new one, so each remaining item becomes its own top-level list with its own atom. This does not relax the rule above: the directive still sits between top-level blocks, never inside one.
+A tool can give each item of a container block, such as a list, its own atom without putting a directive inside the container. It places a directive on its own source lines between two adjacent items instead. Nothing in this Core requires a blank line around that directive; a directive there ends the current top-level CommonMark list and starts a new one, so each remaining item becomes its own top-level list with its own atom. This does not relax the rule above: the directive still sits between top-level blocks, never inside one.
 
 Splitting this way changes the document's structure at the CommonMark level, even though the visible Markdown text is unchanged: one list becomes several single-item lists. A tool that offers this must wrap the resulting atoms in one atom-group. The group is the only record that the split was deliberate; without it, a deliberate split and an accidental one (for example, an unrelated directive that happens to land between two list items) are byte-identical. A linter should report a directive that splits a container block this way when the resulting atoms are not wrapped in a shared atom-group.
 
