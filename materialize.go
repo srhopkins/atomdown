@@ -2,7 +2,6 @@ package atomdown
 
 import (
 	"bytes"
-	"encoding/xml"
 	"fmt"
 )
 
@@ -176,48 +175,35 @@ func MaterializeDigest(source []byte) ([]byte, int, int, error) {
 }
 
 // insertDigestAttribute returns the byte-for-byte marker text for an
-// existing atom directive with one digest attribute appended, immediately
-// before the marker's closing "/>". Every other byte of the marker —
-// attribute order, spacing, quoting of existing values — is preserved
-// exactly, because materialize --digest must not otherwise touch a marker
-// it did not itself just write.
+// existing atom directive with one digest attribute appended after the
+// attributes already there. Every other byte of the marker — attribute order,
+// spacing, quoting of existing values — is preserved exactly, because
+// materialize --digest must not otherwise touch a marker it did not itself
+// just write. That is why this splices bytes instead of re-rendering the
+// marker: re-rendering would re-escape values the author wrote by hand.
 //
-// It re-derives the exact insertion point by re-decoding the directive's
-// XML body the same way scanDirectives does: after reading the directive's
-// single self-closing element as a raw token, encoding/xml's InputOffset
-// reports the position immediately past the closing "/>" (proven by the
-// same invariant scanDirectives already relies on: a directive that failed
-// to consume its entire trimmed body is rejected before reaching Parse's
-// atom list). That makes the insertion point exact even when an attribute
-// value itself contains literal "/" or ">" characters.
+// parseDirectiveLayout supplies both the exact insertion point and the
+// author's own attribute separator. In a one-line marker that separator is a
+// single space, so the result is what it always was. In a wrapped marker the
+// separator is the newline and indentation the author used, so the digest
+// lands in the same column as its siblings and the closing token keeps its
+// own line.
 func insertDigestAttribute(source []byte, marker Range, digest string) ([]byte, error) {
 	raw := append([]byte(nil), source[marker.Start.Offset:marker.End.Offset]...)
 
-	commentStart := bytes.Index(raw, []byte("<!--"))
-	commentEnd := bytes.LastIndex(raw, []byte("-->"))
-	if commentStart < 0 || commentEnd < 0 || commentEnd < commentStart {
-		return nil, fmt.Errorf("materialize --digest: marker is not a well-formed Atomdown comment")
+	layout, err := parseDirectiveLayout(raw)
+	if err != nil {
+		return nil, fmt.Errorf("materialize --digest: %w", err)
 	}
-	commentStart += 4
-
-	body := raw[commentStart:commentEnd]
-	trimmed := bytes.TrimSpace(body)
-	leading := len(body) - len(bytes.TrimLeft(body, " \t\r\n"))
-
-	decoder := xml.NewDecoder(bytes.NewReader(trimmed))
-	if _, err := decoder.RawToken(); err != nil {
-		return nil, fmt.Errorf("materialize --digest: parse existing atom marker: %w", err)
-	}
-	tagEnd := int(decoder.InputOffset())
-	if tagEnd < 2 || tagEnd > len(trimmed) || string(trimmed[tagEnd-2:tagEnd]) != "/>" {
+	if !layout.selfClosing {
 		return nil, fmt.Errorf("materialize --digest: atom marker must be self-closing")
 	}
 
-	insertAt := commentStart + leading + tagEnd - 2
 	var result bytes.Buffer
-	result.Write(raw[:insertAt])
-	fmt.Fprintf(&result, " digest=%q", digest)
-	result.Write(raw[insertAt:])
+	result.Write(raw[:layout.insertAt])
+	result.WriteString(layout.separator)
+	fmt.Fprintf(&result, "digest=%q", digest)
+	result.Write(raw[layout.insertAt:])
 	return result.Bytes(), nil
 }
 

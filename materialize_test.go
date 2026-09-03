@@ -268,9 +268,16 @@ func TestMaterializeIsIdempotentOnSecondRun(t *testing.T) {
 
 // TestMaterializeDigestWritesIntoAWrappedMarkerWithoutReflowingIt proves
 // materialize --digest still works when the target directive spans several
-// source lines: the digest lands immediately before the closing "/>" and
-// every other byte of the marker, newlines and indentation included, is
-// left exactly as the author wrote it.
+// source lines: the digest joins the attributes already there and every other
+// byte of the marker, newlines and indentation included, is left exactly as
+// the author wrote it.
+//
+// The digest now takes the author's own attribute separator, so it lines up
+// with its siblings and the closing "/>" keeps its own line. This test
+// previously pinned the opposite: a single space before the digest, which put
+// it one column short of its siblings and pulled the closing token up onto
+// the digest's line. That was a defect in a feature whose whole purpose is to
+// leave the author's shape alone, so the expected bytes changed on purpose.
 func TestMaterializeDigestWritesIntoAWrappedMarkerWithoutReflowingIt(t *testing.T) {
 	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-status=\"approved\"\n  />\n-->\n\nSome content.\n")
 	output, marked, digested, err := MaterializeDigest(source)
@@ -280,8 +287,27 @@ func TestMaterializeDigestWritesIntoAWrappedMarkerWithoutReflowingIt(t *testing.
 	if marked != 0 || digested != 1 {
 		t.Fatalf("marked = %d, digested = %d, want 0 and 1:\n%s", marked, digested, output)
 	}
-	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-status=\"approved\"\n   digest=\"" +
-		ContentDigest("Some content.") + "\"/>\n-->\n\nSome content.\n"
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-status=\"approved\"\n    digest=\"" +
+		ContentDigest("Some content.") + "\"\n  />\n-->\n\nSome content.\n"
+	if string(output) != want {
+		t.Fatalf("MaterializeDigest() = %q,\nwant %q", output, want)
+	}
+}
+
+// TestMaterializeDigestKeepsOneLineMarkerOnOneLine pins the other half of the
+// separator rule: a directive the author wrote on one line gains its digest
+// after a single space, exactly as before.
+func TestMaterializeDigestKeepsOneLineMarkerOnOneLine(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" acme-status=\"approved\"/> -->\n\nSome content.\n")
+	output, _, digested, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digested != 1 {
+		t.Fatalf("digested = %d, want 1:\n%s", digested, output)
+	}
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" acme-status=\"approved\" digest=\"" +
+		ContentDigest("Some content.") + "\"/> -->\n\nSome content.\n"
 	if string(output) != want {
 		t.Fatalf("MaterializeDigest() = %q,\nwant %q", output, want)
 	}
