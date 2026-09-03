@@ -187,3 +187,44 @@ func TestEmitErrorsWhenCollisionRetriesAreExhausted(t *testing.T) {
 		t.Fatal("expected an error when every generated id collides")
 	}
 }
+
+// TestWrappedDirectiveRoundTrip covers design requirement 5 for a directive
+// that spans several source lines: unknown attributes survive a parse and
+// write cycle. Tokenize is lossless, so the wrapped layout itself survives
+// byte for byte there. Emit is a canonicalizing writer -- it always writes
+// one directive per line -- so it preserves the attributes and their order,
+// not the author's line breaks.
+func TestWrappedDirectiveRoundTrip(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n    acme-approved-by=\"ada\"\n  />\n-->\n\nSome content.\n")
+
+	stream := Tokenize(source)
+	var reconstructed strings.Builder
+	for _, token := range stream.Tokens {
+		reconstructed.WriteString(token.Raw)
+	}
+	if reconstructed.String() != string(source) {
+		t.Fatalf("token stream did not reconstruct the wrapped source: %q", reconstructed.String())
+	}
+
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	output, err := Emit(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\" acme-approved-by=\"ada\"/> -->\n\nSome content.\n\n"
+	if string(output) != want {
+		t.Fatalf("Emit() = %q, want %q", output, want)
+	}
+
+	// The emitted document parses back to the same model, so the cycle is
+	// stable and the unknown attribute is never lost.
+	second := Parse(output)
+	if len(second.Atoms) != 1 || len(second.Atoms[0].Attributes) != 1 ||
+		second.Atoms[0].Attributes[0].Name != "acme-approved-by" ||
+		second.Atoms[0].Attributes[0].Value != "ada" {
+		t.Fatalf("unknown attribute did not survive the cycle: %#v", second.Atoms)
+	}
+}

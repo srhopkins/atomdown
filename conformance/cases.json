@@ -58,6 +58,22 @@
       }
     },
     {
+      "name": "valid-wrapped-directive",
+      "category": "valid",
+      "input": "../testdata/valid/wrapped-directive.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "xml_exit": 0,
+        "strip_exit": 0,
+        "tokens_exit": 0,
+        "atom_ids": ["4P8W2H6K", "9R3C7M5D"],
+        "diagnostic_codes": [],
+        "xml_file": "expected/valid-wrapped-directive.xml",
+        "strip_file": "expected/valid-wrapped-directive.stripped.md"
+      }
+    },
+    {
       "name": "valid-extensible-attributes",
       "category": "valid",
       "input": "../testdata/valid/extensible-attributes.md",
@@ -253,17 +269,17 @@
       }
     },
     {
-      "name": "malformed-multi-line-directive",
+      "name": "malformed-extra-directive-content",
       "category": "malformed",
-      "input": "../testdata/malformed/multi-line-directive.md",
+      "input": "../testdata/malformed/extra-directive-content.md",
       "expect": {
         "parse_exit": 0,
         "lint_exit": 1,
         "xml_exit": 2,
         "strip_exit": 0,
         "atom_ids": [],
-        "diagnostic_codes": ["multi-line-directive"],
-        "strip_file": "expected/malformed-multi-line-directive.stripped.md"
+        "diagnostic_codes": ["extra-directive-content"],
+        "strip_file": "expected/malformed-extra-directive-content.stripped.md"
       }
     }
   ]

@@ -265,3 +265,67 @@ func TestMaterializeIsIdempotentOnSecondRun(t *testing.T) {
 		t.Fatalf("expected the second run to mark zero blocks, got %d", secondMarked)
 	}
 }
+
+// TestMaterializeDigestWritesIntoAWrappedMarkerWithoutReflowingIt proves
+// materialize --digest still works when the target directive spans several
+// source lines: the digest lands immediately before the closing "/>" and
+// every other byte of the marker, newlines and indentation included, is
+// left exactly as the author wrote it.
+func TestMaterializeDigestWritesIntoAWrappedMarkerWithoutReflowingIt(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-status=\"approved\"\n  />\n-->\n\nSome content.\n")
+	output, marked, digested, err := MaterializeDigest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 0 || digested != 1 {
+		t.Fatalf("marked = %d, digested = %d, want 0 and 1:\n%s", marked, digested, output)
+	}
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-status=\"approved\"\n   digest=\"" +
+		ContentDigest("Some content.") + "\"/>\n-->\n\nSome content.\n"
+	if string(output) != want {
+		t.Fatalf("MaterializeDigest() = %q,\nwant %q", output, want)
+	}
+}
+
+// TestMaterializeDigestIgnoresDirectiveWhitespace pins the block-only rule
+// from the writer's side: two documents differing only in whitespace inside
+// the directive must receive the identical digest value.
+func TestMaterializeDigestIgnoresDirectiveWhitespace(t *testing.T) {
+	single := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nSame content.\n")
+	wrapped := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nSame content.\n")
+
+	firstOutput, _, _, err := MaterializeDigest(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOutput, _, _, err := MaterializeDigest(wrapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pattern := regexp.MustCompile(`digest="(sha256:[0-9a-f]{64})"`)
+	first := pattern.FindSubmatch(firstOutput)
+	second := pattern.FindSubmatch(secondOutput)
+	if first == nil || second == nil {
+		t.Fatalf("expected a digest attribute in both outputs:\n%s\n%s", firstOutput, secondOutput)
+	}
+	if string(first[1]) != string(second[1]) {
+		t.Fatalf("directive whitespace changed the digest: %s vs %s", first[1], second[1])
+	}
+}
+
+// TestMaterializeLeavesAWrappedMarkerUntouched proves the plain materialize
+// pass does not rewrite or reflow an existing wrapped directive.
+func TestMaterializeLeavesAWrappedMarkerUntouched(t *testing.T) {
+	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nSome content.\n")
+	output, marked, err := Materialize(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if marked != 0 {
+		t.Fatalf("marked = %d, want 0:\n%s", marked, output)
+	}
+	if string(output) != string(source) {
+		t.Fatalf("Materialize() = %q, want source unchanged %q", output, source)
+	}
+}

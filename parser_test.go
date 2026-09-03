@@ -357,6 +357,68 @@ func TestStripCollapsesDirectiveScaffoldingToOneBlankLine(t *testing.T) {
 	}
 }
 
+// TestStripWrappedDirectiveMatchesSingleLineDirective is the correctness core
+// of the wrapped-directive rule. A directive is never part of the stripped
+// Markdown projection, so wrapping one must not change that projection by a
+// single byte. Each pair below strips the same document twice: once with a
+// one-line directive, once with the same directive wrapped.
+func TestStripWrappedDirectiveMatchesSingleLineDirective(t *testing.T) {
+	cases := []struct {
+		name    string
+		single  string
+		wrapped string
+	}{
+		{
+			name:    "between two paragraphs",
+			single:  "First.\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nSecond.\n",
+			wrapped: "First.\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nSecond.\n",
+		},
+		{
+			name:    "at the start of the document",
+			single:  "<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n",
+			wrapped: "<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nParagraph.\n",
+		},
+		{
+			name:    "at the end of the document",
+			single:  "Paragraph.\n\n<!-- </atom-group> -->\n",
+			wrapped: "Paragraph.\n\n<!--\n  </atom-group>\n-->\n",
+		},
+		{
+			name:    "adjacent to the block it marks",
+			single:  "<!-- <atom id=\"4P8W2H6K\"/> -->\nParagraph.\n",
+			wrapped: "<!--\n  <atom id=\"4P8W2H6K\"/>\n-->\nParagraph.\n",
+		},
+		{
+			name:    "splitting a list between two items",
+			single:  "- one\n<!-- <atom id=\"4P8W2H6K\"/> -->\n- two\n",
+			wrapped: "- one\n<!-- <atom\n     id=\"4P8W2H6K\"/> -->\n- two\n",
+		},
+		{
+			name:    "with a blank line inside the directive",
+			single:  "First.\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nSecond.\n",
+			wrapped: "First.\n\n<!--\n\n  <atom id=\"4P8W2H6K\"/>\n\n-->\n\nSecond.\n",
+		},
+		{
+			name:    "with CRLF line endings",
+			single:  "First.\r\n\r\n<!-- <atom id=\"4P8W2H6K\"/> -->\r\n\r\nSecond.\r\n",
+			wrapped: "First.\r\n\r\n<!--\r\n  <atom id=\"4P8W2H6K\"/>\r\n-->\r\n\r\nSecond.\r\n",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			want := string(Strip([]byte(testCase.single)))
+			got := string(Strip([]byte(testCase.wrapped)))
+			if got != want {
+				t.Fatalf("Strip(wrapped) = %q, want the single-line result %q", got, want)
+			}
+			if strings.Contains(got, "<!--") {
+				t.Fatalf("wrapped directive was not recognized; scaffolding remains: %q", got)
+			}
+		})
+	}
+}
+
 func TestStripPreservesADeliberateDoubleBlankLine(t *testing.T) {
 	// The double blank line here is the author's own and sits nowhere near
 	// a directive, so it must survive: removing it could turn a loose list
@@ -525,17 +587,70 @@ func TestStackedAtomMarkersReportAccurateDiagnostic(t *testing.T) {
 	}
 }
 
-// TestMultiLineDirectiveCommentIsRejected guards SPEC.md's "each directive
-// occupies one source line" rule. Before the fix, an HTML comment whose
-// "<!--" and "-->" landed on different lines still parsed as a valid
-// directive because only the first and last lines were checked for stray
-// text, never whether they were the same line.
-func TestMultiLineDirectiveCommentIsRejected(t *testing.T) {
-	source := []byte("<!-- <atom\nid=\"4P8W2H6K\"\n/> -->\n\nParagraph.\n")
+// TestWrappedDirectiveIsAccepted proves a directive may span several source
+// lines. Wrapping is legal because the digest is block-only: the directive is
+// never hashed, so its internal whitespace carries no meaning and a reader
+// loses nothing by letting an author break a long attribute list over lines.
+func TestWrappedDirectiveIsAccepted(t *testing.T) {
+	source := []byte("<!-- <atom\n  id=\"4P8W2H6K\"\n  slug=\"claim\"\n/> -->\n\nParagraph.\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	if len(document.Atoms) != 1 {
+		t.Fatalf("atoms = %#v, want exactly one explicit atom", document.Atoms)
+	}
+	atom := document.Atoms[0]
+	if atom.ID != "4P8W2H6K" || atom.Slug != "claim" || atom.Implicit {
+		t.Fatalf("atom = %#v, want explicit 4P8W2H6K/claim", atom)
+	}
+	if atom.Text != "Paragraph." {
+		t.Fatalf("atom text = %q, want %q", atom.Text, "Paragraph.")
+	}
+	if atom.Marker == nil || atom.Marker.Start.Line != 1 || atom.Marker.End.Line != 4 {
+		t.Fatalf("marker = %#v, want a span from line 1 to line 4", atom.Marker)
+	}
+}
+
+// TestDirectiveWhitespaceIsSemanticallyIrrelevant pins decision 2 of the
+// wrapped-directive rule: the content digest covers the atom's block only, so
+// two documents that differ solely in whitespace inside a directive must parse
+// the same way and produce the same digest.
+func TestDirectiveWhitespaceIsSemanticallyIrrelevant(t *testing.T) {
+	single := []byte("<!-- <atom id=\"4P8W2H6K\" slug=\"claim\"/> -->\n\nParagraph.\n")
+	wrapped := []byte("<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n  />\n-->\n\nParagraph.\n")
+
+	singleDocument := Parse(single)
+	wrappedDocument := Parse(wrapped)
+	if wrappedDocument.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", wrappedDocument.Diagnostics)
+	}
+	if len(singleDocument.Atoms) != 1 || len(wrappedDocument.Atoms) != 1 {
+		t.Fatalf("atom counts = %d and %d, want 1 and 1", len(singleDocument.Atoms), len(wrappedDocument.Atoms))
+	}
+
+	singleAtom := singleDocument.Atoms[0]
+	wrappedAtom := wrappedDocument.Atoms[0]
+	if singleAtom.ID != wrappedAtom.ID || singleAtom.Slug != wrappedAtom.Slug {
+		t.Fatalf("identity differs: %#v vs %#v", singleAtom, wrappedAtom)
+	}
+	if singleAtom.Text != wrappedAtom.Text {
+		t.Fatalf("block text differs: %q vs %q", singleAtom.Text, wrappedAtom.Text)
+	}
+	if ContentDigest(singleAtom.Text) != ContentDigest(wrappedAtom.Text) {
+		t.Fatal("directive whitespace changed the content digest; the digest must be block-only")
+	}
+}
+
+// TestWrappedDirectiveWithStrayContentIsRejected covers the defect that
+// replaces the retired "one source line" rule: whitespace inside a directive
+// comment is free, but any other content inside it is not.
+func TestWrappedDirectiveWithStrayContentIsRejected(t *testing.T) {
+	source := []byte("<!--\n  <atom id=\"4P8W2H6K\"/>\n  stray text\n-->\n\nParagraph.\n")
 	document := Parse(source)
 	var found bool
 	for _, diagnostic := range document.Diagnostics {
-		if diagnostic.Code == "multi-line-directive" {
+		if diagnostic.Code == "extra-directive-content" {
 			found = true
 			if diagnostic.Position.Line != 1 {
 				t.Fatalf("diagnostic position line = %d, want 1 (the opening <!--)", diagnostic.Position.Line)
@@ -543,29 +658,34 @@ func TestMultiLineDirectiveCommentIsRejected(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("diagnostics = %#v, want a multi-line-directive diagnostic", document.Diagnostics)
+		t.Fatalf("diagnostics = %#v, want an extra-directive-content diagnostic", document.Diagnostics)
 	}
 	for _, atom := range document.Atoms {
 		if atom.ID == "4P8W2H6K" {
-			t.Fatalf("multi-line directive comment was still accepted as an atom marker: %#v", atom)
+			t.Fatalf("comment with stray content was still accepted as an atom marker: %#v", atom)
 		}
 	}
 }
 
-// TestSingleLineDirectiveUnaffectedByMultiLineCheck guards against the
-// multi-line-directive check regressing ordinary single-line directives.
-func TestSingleLineDirectiveUnaffectedByMultiLineCheck(t *testing.T) {
-	source := []byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n")
-	document := Parse(source)
-	if document.HasErrors() {
-		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
-	}
-	for _, diagnostic := range document.Diagnostics {
-		if diagnostic.Code == "multi-line-directive" {
-			t.Fatalf("single-line directive flagged as multi-line: %#v", document.Diagnostics)
-		}
-	}
-	if len(document.Atoms) != 1 || document.Atoms[0].ID != "4P8W2H6K" {
-		t.Fatalf("atoms = %#v, want one explicit atom 4P8W2H6K", document.Atoms)
+// TestInlineDirectiveStillRejectedWhenWrapped proves the relaxed rule did not
+// relax the other half: only whitespace may precede the opening "<!--" and
+// follow the closing "-->", on a wrapped directive too.
+func TestInlineDirectiveStillRejectedWhenWrapped(t *testing.T) {
+	for name, source := range map[string]string{
+		"content before the opening token": "Text before <!-- <atom\n  id=\"4P8W2H6K\"\n/> -->\n\nParagraph.\n",
+		"content after the closing token":  "<!-- <atom\n  id=\"4P8W2H6K\"\n/> --> text after\n\nParagraph.\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			document := Parse([]byte(source))
+			var found bool
+			for _, diagnostic := range document.Diagnostics {
+				if diagnostic.Code == "inline-directive" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("diagnostics = %#v, want an inline-directive diagnostic", document.Diagnostics)
+			}
+		})
 	}
 }

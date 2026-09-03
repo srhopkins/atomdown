@@ -1,10 +1,10 @@
 {
   "duplicate-id.md": ["missing-version-directive", "duplicate-id"],
+  "extra-directive-content.md": ["extra-directive-content", "missing-version-directive", "implicit-atom", "implicit-atom"],
   "inline-directive.md": ["inline-directive", "missing-version-directive", "implicit-atom"],
   "invalid-digest.md": ["missing-version-directive", "invalid-digest"],
   "invalid-xml.md": ["invalid-directive", "missing-version-directive", "implicit-atom", "implicit-atom"],
   "missing-id.md": ["missing-version-directive", "missing-id"],
-  "multi-line-directive.md": ["multi-line-directive", "missing-version-directive", "implicit-atom", "implicit-atom"],
   "stacked-atom-markers.md": ["shadowed-atom", "missing-version-directive"],
   "unclosed-group.md": ["unclosed-group", "missing-version-directive"]
 }
