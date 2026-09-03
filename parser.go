@@ -3,6 +3,7 @@ package atomdown
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -15,6 +16,15 @@ import (
 )
 
 var atomIDPattern = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{8}$`)
+
+// errExtraDirectiveContent reports a recognized Atomdown comment that holds
+// something besides its one directive element. A directive may wrap across
+// several source lines, so this is the defect that replaces the old
+// "one source line" rule: whitespace inside the comment is free, and any
+// other content inside it is not. It has its own diagnostic code
+// (extra-directive-content) because the repair is specific -- delete the
+// stray content -- and different from repairing malformed XML.
+var errExtraDirectiveContent = errors.New("Atomdown comment must contain exactly one XML directive and no other content")
 
 type directiveKind int
 
@@ -197,22 +207,22 @@ func scanDirectives(source []byte, lineStarts []int) ([]directive, []Diagnostic)
 		}
 		if parsed, recognized, err := parseDirective(body, byteRange{start, end}); recognized {
 			switch {
-			case bytes.IndexByte(source[start:end], '\n') >= 0:
+			case errors.Is(err, errExtraDirectiveContent):
 				diagnostics = append(diagnostics, newDiagnostic(
-					"multi-line-directive", SeverityError,
-					"Atomdown directive comment must occupy exactly one source line.", start,
-					"Put the entire <!-- ... --> comment on a single line.", lineStarts,
+					"extra-directive-content", SeverityError,
+					err.Error(), start,
+					"Remove everything inside the comment except the one directive element.", lineStarts,
 				))
 			case err != nil:
 				diagnostics = append(diagnostics, newDiagnostic(
 					"invalid-directive", SeverityError, err.Error(), start,
 					"Correct the XML-shaped Atomdown directive.", lineStarts,
 				))
-			case !directiveOccupiesLine(source, start, end):
+			case !directiveOccupiesLines(source, start, end):
 				diagnostics = append(diagnostics, newDiagnostic(
 					"inline-directive", SeverityError,
-					"Atomdown directive must occupy its own source line.", start,
-					"Move the directive to a separate line outside the Markdown block.", lineStarts,
+					"Atomdown directive must occupy its own source lines.", start,
+					"Move the directive to separate lines outside the Markdown block.", lineStarts,
 				))
 			default:
 				directives = append(directives, parsed)
@@ -251,13 +261,55 @@ func rangeContainsOffset(ranges []byteRange, offset int) bool {
 	return index < len(ranges) && ranges[index].start <= offset
 }
 
-func directiveOccupiesLine(source []byte, start, end int) bool {
-	lineStart := bytes.LastIndexByte(source[:start], '\n') + 1
-	lineEnd := len(source)
+// directiveOccupiesLines reports whether a directive spanning
+// source[start:end] has nothing but whitespace outside itself on every
+// source line it touches. A directive may wrap across several lines, so
+// this checks each spanned line, not only the first and the last:
+//
+//   - On the first line, everything before "<!--" must be whitespace.
+//   - On the last line, everything after "-->" must be whitespace.
+//   - Every line in between lies wholly inside [start, end), because a
+//     comment is one contiguous byte range, so no part of an interior line
+//     sits outside the directive. The loop still walks those lines, so the
+//     rule reads as "no line may carry other content" rather than as two
+//     special cases. Content inside the comment that is not part of the one
+//     directive element is a separate defect; parseDirective reports it as
+//     errExtraDirectiveContent.
+func directiveOccupiesLines(source []byte, start, end int) bool {
+	firstLineStart := bytes.LastIndexByte(source[:start], '\n') + 1
+	lastLineEnd := len(source)
 	if relative := bytes.IndexByte(source[end:], '\n'); relative >= 0 {
-		lineEnd = end + relative
+		lastLineEnd = end + relative
 	}
-	return len(bytes.TrimSpace(source[lineStart:start])) == 0 && len(bytes.TrimSpace(source[end:lineEnd])) == 0
+
+	for cursor := firstLineStart; cursor < lastLineEnd; {
+		lineEnd := lastLineEnd
+		if relative := bytes.IndexByte(source[cursor:lastLineEnd], '\n'); relative >= 0 {
+			lineEnd = cursor + relative
+		}
+		if len(bytes.TrimSpace(outsideDirective(source, cursor, lineEnd, start, end))) != 0 {
+			return false
+		}
+		if lineEnd >= lastLineEnd {
+			break
+		}
+		cursor = lineEnd + 1
+	}
+	return true
+}
+
+// outsideDirective returns the part of source[lineStart:lineEnd) that lies
+// outside the directive's [start, end) byte range. A line is either before
+// the directive's own bytes, after them, or wholly inside them, so at most
+// one side can be non-empty on any single line.
+func outsideDirective(source []byte, lineStart, lineEnd, start, end int) []byte {
+	if lineStart < start {
+		return source[lineStart:min(lineEnd, start)]
+	}
+	if lineEnd > end {
+		return source[max(lineStart, end):lineEnd]
+	}
+	return nil
 }
 
 func parseDirective(body []byte, sourceRange byteRange) (directive, bool, error) {
@@ -307,7 +359,7 @@ func parseDirective(body []byte, sourceRange byteRange) (directive, bool, error)
 			}
 		}
 		if decoder.InputOffset() != int64(len(trimmed)) {
-			return directive{}, true, fmt.Errorf("Atomdown comment must contain exactly one XML directive")
+			return directive{}, true, errExtraDirectiveContent
 		}
 		if result.kind == directiveGroupStart && strings.HasSuffix(strings.TrimSpace(trimmed), "/>") {
 			return directive{}, true, fmt.Errorf("atom-group opening marker must not be self-closing")
@@ -322,7 +374,7 @@ func parseDirective(body []byte, sourceRange byteRange) (directive, bool, error)
 		result.kind = directiveGroupEnd
 		result.name = typed.Name.Local
 		if decoder.InputOffset() != int64(len(trimmed)) {
-			return directive{}, true, fmt.Errorf("Atomdown comment must contain exactly one XML directive")
+			return directive{}, true, errExtraDirectiveContent
 		}
 	default:
 		return directive{}, looksLikeAtomdown(trimmed), fmt.Errorf("Atomdown directive must contain one XML element")
