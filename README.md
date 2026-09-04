@@ -97,7 +97,8 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `lint` checks syntax, IDs, block associations, and groups. It also reports a directive that silently changed the document's rendered block structure (see `--split` below).
 - `lint --strict` also reports unmarked top-level blocks and a missing document version directive. Default lint permits mixed documents so teams can adopt Atomdown in stages.
 - `parse` writes the semantic document model as JSON.
-- `emit` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
+- `emit` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back. Each directive keeps the source layout its author gave it: a directive the author wrapped over several lines comes back wrapped, at the same indentation, byte for byte. See "How `emit` treats directive layout" below.
+- `emit --flatten` rewrites every directive to one line in canonical attribute order. Use it to canonicalize a document on purpose.
 - `tokens` writes a lossless stream of Markdown, whitespace, and Atomdown directives.
 - `xml` writes the normalized XML metadata model.
 - `strip` removes Atomdown directives and writes plain Markdown.
@@ -106,6 +107,16 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `materialize --digest` adds a Core content digest to every atom that does not already have one, so a later `drift` run can tell whether the block changed since this run. It never touches an atom that already has a digest. See "Detecting content drift" below.
 - `drift` (also `verify`) reports which atom IDs have a digest that no longer matches their content, and exits non-zero when it finds any. An atom with no digest is not checked.
 - `id` creates an eight-character Crockford Base32 ID.
+
+### How `emit` treats directive layout
+
+A directive can span several source lines, so an agent that edits the model and writes it back has to answer what happens to the author's line breaks. `emit` answers it this way:
+
+- A directive whose attributes are unchanged comes back exactly as the author wrote it. Line breaks, interior whitespace, and indentation all survive, and the attribute order is the author's, not a canonical one.
+- A directive with an added, removed, or changed attribute keeps its authored shape and rebuilds only the attribute sequence. A wrapped directive stays wrapped, each attribute keeps the author's indentation, and the closing token keeps its own line. A one-line directive stays on one line. The attribute order becomes canonical, because an attribute that just arrived has no authored position.
+- `emit --flatten` writes every directive on one line, whether it changed or not.
+
+`emit` normalizes the blank lines between Markdown blocks, so a whole file is not guaranteed byte-identical across a parse and emit cycle. The directive text is.
 
 ### Splitting a list into per-item atoms
 

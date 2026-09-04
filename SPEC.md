@@ -44,6 +44,16 @@ These two examples are equivalent. A tool must treat them identically:
 
 **Why wrapping is allowed.** A directive holds an open-ended attribute list, because Core preserves unknown attributes for extensions. One line therefore has no length limit, and a long line is hard for a person to read and hard to review in a diff. Wrapping costs nothing, because a directive is not visible Markdown: a Markdown renderer treats the whole comment as one comment whether it holds one line or ten, and an Atomdown parser reads the comment body as XML, which permits a line break between attributes already. Nothing in Core reads a directive positionally, so no rule needs the directive to fit on one line.
 
+**A writer must not reflow a directive it did not change.** Wrapping is the author's choice, and a reader gets the same model either way, so a tool that rewrites a document must return each unchanged directive's source bytes exactly: the line breaks, the interior whitespace, and the indentation. Two documents that differ only in directive whitespace are equivalent to a reader, so nothing entitles a writer to pick one form over the other. A writer that flattens a wrapped directive produces a diff the author did not ask for and cannot see the reason for.
+
+A writer can only return bytes for the attribute set those bytes describe. When a tool adds, removes, or changes an attribute, that state has no authored text. The writer then keeps the part of the shape that is still defined and rebuilds the rest:
+
+- A directive the author wrapped stays wrapped. Every attribute keeps the separator and the indentation the author used, so an attribute that arrives lines up with the attributes already there, and the closing token keeps its own line.
+- A directive the author wrote on one line stays on one line. A writer never invents a shape the author did not use.
+- The attribute sequence becomes canonical: the identity attributes first, in the order this specification lists them, then the extension attributes in model order. An attribute that just arrived has no authored position, so no authored order can be honored for the new set.
+
+A tool can offer to canonicalize a document on purpose. The Go CLI does this with `atomdown emit --flatten`, which writes every directive on one line. It must be opt-in, because the reflow is the point of the request rather than a side effect of one.
+
 **Why other content on a spanned line is still an error.** The line before and the line after a directive are ordinary Markdown, and a directive attaches to the next top-level block. Content sharing a line with the directive makes that attachment ambiguous and can change the rendered HTML: the same bytes become part of a paragraph rather than a comment. This is the `inline-directive` rule, and wrapping does not relax it. Content inside the comment that is not part of the directive element is a separate error, reported as `extra-directive-content`, because a reader cannot tell whether it is a forgotten attribute, a second directive, or a note. A tool must not guess.
 
 Do not put a directive inside another Markdown block. Examples include paragraphs, lists, code fences, tables, and block quotes.

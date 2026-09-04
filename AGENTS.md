@@ -25,6 +25,7 @@ Read `CONTRIBUTING.md` before you start a public change. Use the Bug report or P
 - Put application behavior in extensions.
 - Do not parse the complete Markdown document as XML.
 - Keep every source line a directive spans free of other content. A directive can wrap across several lines; whitespace inside it carries no meaning.
+- Return an unchanged directive's source bytes exactly. Whitespace inside a directive is the author's, so no writer reflows a directive it did not change. Canonicalizing is opt-in: `emit --flatten`.
 - Do not add CGO or Go's runtime `plugin` package.
 
 ## Change requirements

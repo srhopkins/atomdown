@@ -43,6 +43,7 @@ Machine-readable commands:
 ```text
 atomdown parse FILE
 atomdown emit FILE
+atomdown emit --flatten FILE
 atomdown tokens FILE
 atomdown lint --json FILE
 atomdown xml FILE
@@ -54,7 +55,7 @@ atomdown drift FILE
 atomdown id
 ```
 
-`atomdown emit FILE` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back.
+`atomdown emit FILE` writes marked Markdown from `parse` JSON. Agents can edit the model and write it back. A directive whose attributes are unchanged comes back exactly as the author wrote it, so line wrapping, interior whitespace and indentation all survive. A directive with an added, removed or changed attribute keeps its authored shape and rebuilds only the attribute sequence: a wrapped directive stays wrapped at the author's indentation with the closing token on its own line, a one-line directive stays on one line, and the attribute order becomes canonical because an attribute that just arrived has no authored position. `atomdown emit --flatten FILE` writes every directive on one line instead. Blank lines between Markdown blocks are normalized either way, so the directive text round-trips byte for byte, not the whole file.
 
 `atomdown materialize FILE` writes a copy with a new atom marker before each implicit atom, and adds the document version directive at the top when the source has none. Use `atomdown materialize -w FILE` to update the file in place.
 
