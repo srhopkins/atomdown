@@ -88,6 +88,8 @@ go run ./cmd/atomdown strip testdata/example.md
 go run ./cmd/atomdown materialize testdata/example.md
 go run ./cmd/atomdown materialize --split list-item testdata/example.md
 go run ./cmd/atomdown materialize --digest testdata/example.md
+go run ./cmd/atomdown materialize --slugs testdata/example.md
+go run ./cmd/atomdown get launch-claim testdata/example.md
 go run ./cmd/atomdown drift testdata/example.md
 go run ./cmd/atomdown id
 ```
@@ -105,6 +107,8 @@ Each file command accepts one file. Use `-` or omit the file to read standard in
 - `materialize` splits a document into addressable blocks by adding a new atom marker before each unmarked top-level block. It also adds the document version directive at the top of the file when the source does not already declare one. Use `materialize -w FILE` to update the file in place. It reports how many blocks it marked, on stderr, so a piped stdout run stays clean.
 - `materialize --split <node-types>` gives finer granularity than one atom per top-level block. `<node-types>` is a comma-separated list of CommonMark node names; today only `list-item` is accepted. An unknown name exits non-zero and names the accepted values. See "Splitting a list into per-item atoms" below before you use it.
 - `materialize --digest` adds a Core content digest to every atom that does not already have one, so a later `drift` run can tell whether the block changed since this run. It never touches an atom that already has a digest. See "Detecting content drift" below.
+- `materialize --slugs` adds a generated readable slug to every atom and atom group that does not already have one, so a person can name a block without reading an ID. It never touches a slug that is already there. `materialize --force-slugs` replaces every slug with a generated one. See "Generating readable slugs" below.
+- `get <selector>` prints one atom: its resolved ID, its slug, its group, its directive, and its block text. A `<selector>` is an atom ID, an atom or atom-group slug, or `slug:<name>`. It is read-only. See "Naming one atom with a selector" below.
 - `drift` (also `verify`) reports which atom IDs have a digest that no longer matches their content, and exits non-zero when it finds any. An atom with no digest is not checked.
 - `id` creates an eight-character Crockford Base32 ID.
 
@@ -143,6 +147,120 @@ go run ./cmd/atomdown materialize --split list-item -w criteria.md
 **The atom-group is load-bearing.** `--split` always wraps the split items in one `atom-group`. The group records that the items belonged to one list, and it is the only way to tell a deliberate split from an accidental one, since the two are otherwise byte-identical to a parser. `lint` warns when it finds split single-item lists that are not wrapped in a shared atom-group (`directive-splits-list`), because that pattern silently changes rendered structure without recording that the change was deliberate. Running `materialize --split list-item` again is a no-op: a list already split to one item per group is left alone.
 
 **Two limits.** A nested list item's children are not individually addressable: `--split list-item` only splits the top-level items of a list, so a parent item's atom still covers every child nested under it. A GFM table's rows are not addressable at all; a table always gets one atom for the whole table (tracked separately, see the "materialize --split table-row" issue).
+
+### Generating readable slugs
+
+An atom ID is eight random Crockford Base32 characters. That is the right
+shape for identity and the wrong shape for a person: grouping a page of
+sections by ID means looking up every one of them. The `slug` attribute has
+always been in Core for exactly this, as a readable alias that is not
+identity. `materialize --slugs` fills it in.
+
+```bash
+go run ./cmd/atomdown materialize --slugs -w running.md
+```
+
+```markdown
+<!-- <atomdown version="1"/> -->
+<!-- <atom-group id="NS67J8K5" slug="resea-tickets-due-tonight"> -->
+<!-- <atom id="QQE8MK3D" slug="resea-tickets-due-tonight-2"/> -->
+## RESEA tickets - due tonight
+<!-- </atom-group> -->
+```
+
+**Where the slug comes from.** From the item's own content, never from
+anything outside it. An atom slugs from the first line of its text that has
+words in it, with the Markdown that marks the block's kind stripped off:
+heading hashes, list bullets and numbers, task-list checkboxes, block-quote
+markers, emphasis, code spans, and a link's URL. So a heading slugs from
+its heading text, and a paragraph slugs from its opening words.
+
+An atom group slugs from **the first heading inside it**, and from its first
+atom when the group has no heading. A group carries no text of its own, so
+there is nothing else to name it by, and the heading a section opens with is
+what a person calls that section anyway. This is the case the feature exists
+for.
+
+A block with no words at all — a thematic break, a fence of symbols — takes
+a name for its kind (`break`, `code`, `table`) rather than no slug.
+
+**The shape.** Lowercase ASCII kebab-case: `[a-z0-9]` in groups joined by
+single hyphens, no leading or trailing hyphen. At most 8 words and at most
+**48 characters**, cut at a hyphen so a truncated slug never ends mid-word.
+48 is long enough for a real heading and short enough to stay readable in a
+terminal column and typeable on a command line. Accented Latin letters fold
+to ASCII (`Café` becomes `cafe`); anything else becomes a word separator.
+
+**Slugs are unique within the document.** A collision takes the lowest free
+`-2`, `-3`, ... suffix, and atoms and groups share one slug namespace, so a
+selector never has to say which kind it means. Uniqueness is this tool's
+stance and not a format rule: SPEC.md says the slug is not identity, so a
+document with two identical slugs is valid and every reader must accept
+one. The format permits duplicates; the tooling declines to create them and
+`lint` warns when it finds one.
+
+**A hand-written slug is never overwritten.** An existing slug is reserved
+before any slug is minted, so a generated slug never collides with one you
+wrote, and an item that already has a slug is left byte for byte alone. Your
+wording for a block beats anything a generator can derive from it. Use
+`materialize --force-slugs` when you actually want them replaced.
+
+**No digest changes.** A digest covers an atom's block bytes and never a
+byte of a directive, so writing a slug into a directive cannot invalidate
+one. Running `--slugs` over a digested file leaves `drift` clean.
+
+Unlike `--digest`, which appends its attribute and leaves every other byte
+untouched, a slug write rebuilds the directive's attribute sequence. It has
+to: SPEC.md orders the identity attributes `id`, `slug`, `digest`, and an
+atom that already carries a digest leaves no gap to splice a slug into. The
+authored skeleton still survives — a wrapped directive stays wrapped at your
+indentation — which is the same rule `emit` follows for a directive whose
+attribute set changed.
+
+`lint` reports two slug problems, and neither is an error, because neither
+describes an invalid document:
+
+- `duplicate-slug` is a **default-lint warning**. A duplicate slug names no
+  single item, so a selector that hits it cannot resolve. That is a defect
+  at any stage of Atomdown adoption, which is why it is not hidden behind
+  `--strict`.
+- `non-canonical-slug` is a **`--strict`-only warning**: a slug that is not
+  lowercase kebab-case within 48 characters. It still resolves, uniquely,
+  and Core left room for a loose value on purpose, so reporting it by
+  default would nag every author who wrote a slug by hand.
+
+### Naming one atom with a selector
+
+```bash
+go run ./cmd/atomdown get resea-tickets-due-tonight running.md
+go run ./cmd/atomdown get QQE8MK3D running.md
+go run ./cmd/atomdown get slug:4P8W2H6K running.md
+go run ./cmd/atomdown get resea-tickets-due-tonight --json running.md
+```
+
+`get` prints one atom's resolved ID, slug, group, directive, and block text.
+It reads the file and changes nothing.
+
+A `<selector>` is an atom ID, an atom or atom-group slug, or a slug with an
+explicit `slug:` prefix. The precedence is fixed:
+
+1. A bare selector is matched against atom IDs **first**. An ID is identity
+   and a slug is not, so an ID always wins.
+2. A bare selector that matches no ID is matched against slugs: an atom's
+   own slug first, then an atom-group's slug, which resolves to the group's
+   first atom. An atom's own slug is the closer match, so a group is only
+   consulted when no atom carries the name.
+3. A `slug:` selector skips step 1 entirely, which is how you reach a slug
+   that happens to look like an ID.
+
+**An ambiguous slug is an error, never a silent pick.** A slug naming
+several atoms exits non-zero and lists every candidate ID, so you can
+re-run with the one you meant. Picking one would defeat the only reason to
+name an atom by slug, which is knowing which atom you named.
+
+This is the smallest useful selector surface on purpose. The rules live in
+one library function, `atomdown.Resolve`, so a later command that moves or
+regroups an atom accepts exactly the same spellings without restating them.
 
 ### Detecting content drift
 

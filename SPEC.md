@@ -74,6 +74,30 @@ Preserve the ID when you move an item. Generate a new ID when you copy an item.
 
 The optional `slug` attribute is a readable alias. The slug is not identity.
 
+**Core constrains neither a slug's shape nor its uniqueness.** Any string is
+a valid slug, and two items in one document can carry the same slug. A
+conforming reader accepts both.
+
+This is deliberate, and it is a consequence of the rule above rather than a
+separate decision. The slug is not identity, so nothing in Core reads it:
+identity, grouping, and order are all settled by `id`. A shape rule would
+therefore add a constraint no reader needs to agree on, and it would make an
+existing document non-conforming for a value that never affected a parse.
+The `id` attribute carries the opposite rules for the opposite reason — a
+reader does depend on it — which is why it has both a strict shape and a
+uniqueness requirement.
+
+A tool is still free to be stricter than the format, and one should be. A
+slug exists so that a person can name one item with it, and a duplicate
+slug names none. So a tool that **generates** slugs should generate unique
+ones in a predictable shape, and a linter should report a duplicate slug.
+Neither can be an error, because the document is valid. The Go
+implementation does this: `materialize --slugs` generates unique lowercase
+kebab-case slugs, and `lint` reports a duplicate as a warning. A second
+implementation is free to choose a different shape; the format does not
+make it wrong. See README.md "Generating readable slugs" for the shape this
+implementation produces.
+
 ## Content digest
 
 An `atom` directive can carry an optional `digest` attribute. It answers a

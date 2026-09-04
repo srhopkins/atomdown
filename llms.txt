@@ -21,9 +21,10 @@ Editing rules:
 4. Preserve an ID when you move its item.
 5. Generate a new ID when you copy an item.
 6. Keep group markers balanced. Atomdown Core 1 does not permit nested groups.
-7. Run `atomdown lint FILE` after you edit a document.
+7. Preserve a hand-written `slug`. It is the author's wording for the block and it is not identity, so never regenerate one that is already there.
+8. Run `atomdown lint FILE` after you edit a document.
 
-Default lint permits implicit atoms and a missing document version directive, so a document can mix marked and unmarked blocks. Use `atomdown lint --strict FILE` to report both. Default lint always reports `directive-splits-list`, a directive that silently splits one list into several (see `--split` below); `--strict` does not gate this one.
+Default lint permits implicit atoms and a missing document version directive, so a document can mix marked and unmarked blocks. Use `atomdown lint --strict FILE` to report both. Default lint always reports `directive-splits-list`, a directive that silently splits one list into several (see `--split` below), and `duplicate-slug`, a slug that names no single item; `--strict` does not gate either one. `--strict` additionally reports `non-canonical-slug`, a slug outside the lowercase kebab-case shape the generator produces. No slug diagnostic is ever an error, because Core constrains neither a slug's shape nor its uniqueness.
 
 ## Standard
 
@@ -51,6 +52,10 @@ atomdown strip FILE
 atomdown materialize FILE
 atomdown materialize --split list-item FILE
 atomdown materialize --digest FILE
+atomdown materialize --slugs FILE
+atomdown materialize --force-slugs FILE
+atomdown get SELECTOR FILE
+atomdown get --json SELECTOR FILE
 atomdown drift FILE
 atomdown id
 ```
@@ -62,6 +67,12 @@ atomdown id
 `atomdown materialize --split list-item FILE` splits a list into one atom per item instead of one atom for the whole list, wrapped in an atom-group. This changes rendered HTML (one list becomes several), so it is opt-in.
 
 `atomdown materialize --digest FILE` writes a Core content digest (`sha256:` plus 64 hex characters) to every atom that does not already have one, so a later run can tell whether the block's content changed. It never overwrites an atom that already has a digest; nothing does, automatically. Use `atomdown drift FILE` to report which atom IDs no longer match their recorded digest; it exits non-zero when it finds any. An atom with no digest is not checked.
+
+`atomdown materialize --slugs FILE` writes a generated readable slug to every atom and atom group that does not already have one, so a person can name a block without reading an eight-character ID. An atom slugs from the first line of its own text that has words in it, with the Markdown leaders stripped, so a heading slugs from its heading text. An atom group slugs from the first heading inside it, and from its first atom when it has no heading. The shape is lowercase ASCII kebab-case, at most 8 words and 48 characters, cut at a hyphen. Slugs are unique within the document and a collision takes the lowest free `-2`, `-3`, ... suffix; atoms and groups share one slug namespace. An existing slug is reserved before anything is minted and is never rewritten — use `atomdown materialize --force-slugs FILE` to replace them. No digest changes, because a digest covers block bytes and never a directive byte. `--slugs` cannot run together with `--digest` or `--split`.
+
+Uniqueness is the tool's stance, not a format rule. Core says the slug is not identity, so a document with two identical slugs is valid and a reader must accept it; the tooling declines to generate one and lint warns about one it finds.
+
+`atomdown get SELECTOR FILE` prints one atom: its resolved ID, its slug, its group, its directive, and its block text. It is read-only. A `SELECTOR` is an atom ID, an atom or atom-group slug, or `slug:NAME`. A bare selector is matched against atom IDs first, because an ID is identity and a slug is not, then against atom slugs, then against group slugs (which resolve to the group's first atom). The `slug:` prefix skips the ID step, which reaches a slug that looks like an ID. A slug naming several atoms exits non-zero and lists every candidate ID; nothing is ever picked silently. The rules live in `atomdown.Resolve`, so a later command that moves or regroups an atom takes the same selectors.
 
 ## Optional
 
