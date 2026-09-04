@@ -297,6 +297,36 @@
         "diagnostic_codes": ["extra-directive-content"],
         "strip_file": "expected/malformed-extra-directive-content.stripped.md"
       }
+    },
+    {
+      "name": "valid-groups-generated-slugs",
+      "category": "valid",
+      "input": "../testdata/valid/groups.md",
+      "expect": {
+        "materialize_slugs_exit": 0,
+        "slugs_file": "expected/valid-groups.slugs.md"
+      }
+    },
+    {
+      "name": "mixed-duplicate-slug",
+      "category": "mixed",
+      "input": "../testdata/mixed/duplicate-slug.md",
+      "expect": {
+        "parse_exit": 0,
+        "lint_exit": 0,
+        "atom_ids": ["4P8W2H6K", "9R3C7M5D", "5H8M2W6Y"],
+        "diagnostic_codes": ["duplicate-slug"]
+      }
+    },
+    {
+      "name": "mixed-duplicate-slug-strict",
+      "category": "mixed",
+      "input": "../testdata/mixed/duplicate-slug.md",
+      "expect": {
+        "lint_exit": 0,
+        "lint_strict": true,
+        "diagnostic_codes": ["duplicate-slug", "non-canonical-slug"]
+      }
     }
   ]
 }

@@ -30,7 +30,7 @@ Read `CONTRIBUTING.md` before you start a public change. Use the Bug report or P
 
 ## Change requirements
 
-- Add one malformed fixture for each new diagnostic.
+- Add one fixture for each new diagnostic. An error diagnostic goes in `testdata/malformed/`; a warning goes in `testdata/mixed/` with a conformance case, because every `malformed/` fixture must produce an error.
 - Change golden output only when the format change is intentional.
 - Treat changes to `SPEC.md` and `schema/atomdown-1.xsd` as compatibility changes.
 - Describe compatibility effects in the pull request.

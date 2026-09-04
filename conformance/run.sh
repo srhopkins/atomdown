@@ -202,6 +202,24 @@ for case in cases:
                     wanted = fh.read()
                 errors.append(check("digest_file", out == wanted, f"stdout differs from {expect['digest_file']}"))
 
+    need_slugs = any(key in expect for key in ("materialize_slugs_exit", "slugs_file"))
+    if need_slugs:
+        code, out, err = run_cmd("materialize", ["--slugs"], input_path, use_stdin)
+        if "materialize_slugs_exit" in expect:
+            errors.append(check("materialize_slugs_exit", code == expect["materialize_slugs_exit"], f"got {code} want {expect['materialize_slugs_exit']}"))
+        if "slugs_file" in expect:
+            dest = resolve(expect["slugs_file"])
+            if regen and code == 0:
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "wb") as fh:
+                    fh.write(out)
+            elif not os.path.isfile(dest):
+                errors.append(f"slugs_file missing: {dest}")
+            else:
+                with open(dest, "rb") as fh:
+                    wanted = fh.read()
+                errors.append(check("slugs_file", out == wanted, f"stdout differs from {expect['slugs_file']}"))
+
     for emit_key, emit_args in (("emit_file", []), ("emit_flatten_file", ["--flatten"])):
         if emit_key not in expect:
             continue

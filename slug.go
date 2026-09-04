@@ -143,10 +143,24 @@ func slugFallback(nodeType string) string {
 	if name, exists := slugFallbacks[nodeType]; exists {
 		return name
 	}
-	if slug := Slugify(nodeType); slug != "" {
+	// A node type this list does not name is a goldmark Kind string in
+	// CamelCase. Splitting it on the capitals turns it into words, so an
+	// extension's own block kind still reads as a slug.
+	if slug := Slugify(splitCamelCase(nodeType)); slug != "" {
 		return slug
 	}
 	return "atom"
+}
+
+func splitCamelCase(name string) string {
+	var builder strings.Builder
+	for index, symbol := range name {
+		if index > 0 && unicode.IsUpper(symbol) {
+			builder.WriteByte(' ')
+		}
+		builder.WriteRune(symbol)
+	}
+	return builder.String()
 }
 
 // slugRegistry mints slugs that are unique inside one document.

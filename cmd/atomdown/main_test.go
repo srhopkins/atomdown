@@ -355,3 +355,191 @@ func TestPrintUsageDocumentsTheFlattenFlag(t *testing.T) {
 		t.Fatalf("usage does not mention --flatten:\n%s", output.String())
 	}
 }
+
+func TestRunMaterializeSlugsWritesSlugsAndKeepsHandWrittenOnes(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom-group id=\"3G7K9R5V\" slug=\"resea\"> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\n## RESEA tickets - due tonight\n\n<!-- </atom-group> -->\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "--slugs", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize --slugs failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The hand-written group slug is the author's own wording, so it must
+	// come back untouched while the unnamed atom gains a generated slug.
+	if !strings.Contains(string(written), `<atom-group id="3G7K9R5V" slug="resea">`) {
+		t.Fatalf("the hand-written group slug did not survive:\n%s", written)
+	}
+	if !strings.Contains(string(written), `<atom id="4P8W2H6K" slug="resea-tickets-due-tonight"/>`) {
+		t.Fatalf("the atom did not gain a generated slug:\n%s", written)
+	}
+	if !strings.Contains(stderr.String(), "wrote 1 slug") {
+		t.Fatalf("expected a one-slug report, got:\n%s", stderr.String())
+	}
+
+	var stdout2, stderr2 bytes.Buffer
+	if err := run([]string{"materialize", "--slugs", "-w", path}, &stdout2, &stderr2); err != nil {
+		t.Fatalf("second materialize --slugs failed: %v\n%s", err, stderr2.String())
+	}
+	again, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(again) != string(written) {
+		t.Fatalf("a second materialize --slugs run changed the file:\n%s", again)
+	}
+	if !strings.Contains(stderr2.String(), "already has a slug") {
+		t.Fatalf("expected the second run to report nothing left to slug, got:\n%s", stderr2.String())
+	}
+}
+
+func TestRunMaterializeForceSlugsReplacesAnExistingSlug(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"tonight\"/> -->\n\n## RESEA tickets - due tonight\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "--force-slugs", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize --force-slugs failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), `slug="resea-tickets-due-tonight"`) {
+		t.Fatalf("--force-slugs did not replace the slug:\n%s", written)
+	}
+}
+
+func TestRunMaterializePlainNeverWritesASlug(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\nPara one.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"materialize", "-w", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("materialize failed: %v\n%s", err, stderr.String())
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(written), "slug=") {
+		t.Fatalf("default materialize must never write a slug attribute:\n%s", written)
+	}
+}
+
+func TestRunMaterializeSlugsRejectsCombinedFlags(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "# T\n\nPara one.\n")
+
+	for _, arguments := range [][]string{
+		{"materialize", "--slugs", "--digest", path},
+		{"materialize", "--slugs", "--split", "list-item", path},
+	} {
+		var stdout, stderr bytes.Buffer
+		if err := run(arguments, &stdout, &stderr); err == nil {
+			t.Fatalf("%v was accepted", arguments)
+		}
+	}
+}
+
+func TestRunGetResolvesAnIDASlugAndAGroupSlug(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom-group id=\"3G7K9R5V\" slug=\"findings\"> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"first-claim\"/> -->\n\nFirst claim.\n\n<!-- </atom-group> -->\n")
+
+	for _, selector := range []string{"4P8W2H6K", "first-claim", "slug:first-claim", "findings"} {
+		var stdout, stderr bytes.Buffer
+		if err := run([]string{"get", selector, path}, &stdout, &stderr); err != nil {
+			t.Fatalf("get %q failed: %v", selector, err)
+		}
+		output := stdout.String()
+		if !strings.Contains(output, "id: 4P8W2H6K") {
+			t.Fatalf("get %q did not report the resolved ID:\n%s", selector, output)
+		}
+		if !strings.Contains(output, "First claim.") {
+			t.Fatalf("get %q did not print the block text:\n%s", selector, output)
+		}
+		if !strings.Contains(output, "group: 3G7K9R5V") {
+			t.Fatalf("get %q did not report the group:\n%s", selector, output)
+		}
+	}
+}
+
+func TestRunGetReportsAnAmbiguousSlugWithEveryCandidate(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"findings\"/> -->\n\nFirst.\n\n<!-- <atom id=\"9R3C7M5D\" slug=\"findings\"/> -->\n\nSecond.\n")
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"get", "findings", path}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("an ambiguous slug resolved silently")
+	}
+	for _, id := range []string{"4P8W2H6K", "9R3C7M5D"} {
+		if !strings.Contains(err.Error(), id) {
+			t.Fatalf("error %q does not name candidate %q", err.Error(), id)
+		}
+	}
+}
+
+func TestRunGetRequiresASelector(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"get"}, &stdout, &stderr); err == nil {
+		t.Fatal("get ran without a selector")
+	}
+}
+
+func TestRunLintReportsADuplicateSlugByDefaultButNotAsAnError(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"findings\"/> -->\n\nFirst.\n\n<!-- <atom id=\"9R3C7M5D\" slug=\"findings\"/> -->\n\nSecond.\n")
+
+	var stdout, stderr bytes.Buffer
+	// A duplicate slug is a valid document, so lint must exit zero while
+	// still reporting the warning.
+	if err := run([]string{"lint", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("lint exited non-zero for a duplicate slug: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "warning duplicate-slug") {
+		t.Fatalf("default lint did not report duplicate-slug:\n%s", stdout.String())
+	}
+}
+
+func TestRunLintReportsANonCanonicalSlugOnlyUnderStrict(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/doc.md"
+	writeFile(t, path, "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"Q3 Findings\"/> -->\n\nFirst.\n")
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"lint", path}, &stdout, &stderr); err != nil {
+		t.Fatalf("lint exited non-zero: %v", err)
+	}
+	if strings.Contains(stdout.String(), "non-canonical-slug") {
+		t.Fatalf("default lint must stay quiet about an author's own slug spelling:\n%s", stdout.String())
+	}
+
+	var strictOut, strictErr bytes.Buffer
+	if err := run([]string{"lint", "--strict", path}, &strictOut, &strictErr); err != nil {
+		t.Fatalf("lint --strict exited non-zero: %v", err)
+	}
+	if !strings.Contains(strictOut.String(), "warning non-canonical-slug") {
+		t.Fatalf("lint --strict did not report non-canonical-slug:\n%s", strictOut.String())
+	}
+}
+
+func TestPrintUsageDocumentsTheSlugCommands(t *testing.T) {
+	var output bytes.Buffer
+	printUsage(&output)
+	for _, want := range []string{"--slugs", "--force-slugs", "get <selector>"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("usage does not mention %q:\n%s", want, output.String())
+		}
+	}
+}
