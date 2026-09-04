@@ -294,3 +294,64 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+// TestRunEmitKeepsAuthoredLayoutAndFlattenCanonicalizes drives the whole CLI
+// pipeline an author actually runs: parse to JSON, then emit that JSON back to
+// Markdown. Default emit must return the wrapped directive byte for byte;
+// --flatten must return the canonical one-line form.
+func TestRunEmitKeepsAuthoredLayoutAndFlattenCanonicalizes(t *testing.T) {
+	directory := t.TempDir()
+	path := directory + "/wrapped.md"
+	source := "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n  />\n-->\n\nParagraph.\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var parsed, stderr bytes.Buffer
+	if err := run([]string{"parse", path}, &parsed, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	model := directory + "/model.json"
+	if err := os.WriteFile(model, parsed.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var emitted bytes.Buffer
+	if err := run([]string{"emit", model}, &emitted, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	// emit separates blocks with one blank line and ends the document with
+	// one, so compare with the trailing newlines trimmed. The directive text
+	// itself must match byte for byte.
+	if strings.TrimRight(emitted.String(), "\n") != strings.TrimRight(source, "\n") {
+		t.Fatalf("emit did not return the authored bytes:\n%q", emitted.String())
+	}
+
+	var flattened bytes.Buffer
+	if err := run([]string{"emit", "--flatten", model}, &flattened, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\"/> -->\n\nParagraph.\n\n"
+	if flattened.String() != want {
+		t.Fatalf("emit --flatten = %q,\nwant %q", flattened.String(), want)
+	}
+}
+
+// TestRunEmitStillRejectsTwoFiles proves adding a flag did not lose the
+// one-file rule; flag parsing now decides what counts as a file argument.
+func TestRunEmitStillRejectsTwoFiles(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"emit", "one.json", "two.json"}, &stdout, &stderr); err == nil {
+		t.Fatal("expected an error for two files")
+	}
+}
+
+// TestPrintUsageDocumentsTheFlattenFlag keeps the usage text and the flag
+// from drifting apart.
+func TestPrintUsageDocumentsTheFlattenFlag(t *testing.T) {
+	var output bytes.Buffer
+	printUsage(&output)
+	if !strings.Contains(output.String(), "--flatten") {
+		t.Fatalf("usage does not mention --flatten:\n%s", output.String())
+	}
+}

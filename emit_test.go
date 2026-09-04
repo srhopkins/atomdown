@@ -238,3 +238,252 @@ func TestWrappedDirectiveRoundTrip(t *testing.T) {
 		t.Fatalf("EmitWithOptions(Flatten) = %q, want %q", flattened, wantFlat)
 	}
 }
+
+// directiveMarkers returns every HTML comment in a document, exactly as it
+// appears in the bytes. Emit normalizes the blank lines between blocks, so a
+// whole-file comparison would answer a different question. These spans are
+// the directive text the layout rule is about.
+func directiveMarkers(source string) []string {
+	var markers []string
+	for cursor := 0; cursor < len(source); {
+		start := strings.Index(source[cursor:], "<!--")
+		if start < 0 {
+			break
+		}
+		start += cursor
+		end := strings.Index(source[start:], "-->")
+		if end < 0 {
+			break
+		}
+		end = start + end + len("-->")
+		markers = append(markers, source[start:end])
+		cursor = end
+	}
+	return markers
+}
+
+// assertDirectivesRoundTrip proves a parse and emit cycle returns every
+// directive's bytes unchanged. This is the guarantee the whole layout rule
+// exists to provide, so every layout case below asserts it the same way.
+func assertDirectivesRoundTrip(t *testing.T, source string) string {
+	t.Helper()
+	document := Parse([]byte(source))
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	output, err := Emit(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := directiveMarkers(source)
+	got := directiveMarkers(string(output))
+	if len(want) == 0 {
+		t.Fatalf("test source has no directive to compare")
+	}
+	if len(got) != len(want) {
+		t.Fatalf("emitted %d directives, want %d:\n%s", len(got), len(want), output)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("directive %d = %q, want the authored bytes %q", index, got[index], want[index])
+		}
+	}
+	return string(output)
+}
+
+// TestEmitPreservesAuthoredDirectiveLayout is the round-trip guarantee across
+// every layout the parser accepts. Each case is a shape an author can write
+// and expect back unchanged.
+func TestEmitPreservesAuthoredDirectiveLayout(t *testing.T) {
+	cases := []struct {
+		name   string
+		source string
+	}{
+		{
+			name:   "single line",
+			source: "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\"/> -->\n\nParagraph.\n",
+		},
+		{
+			name:   "wrapped",
+			source: "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n  />\n-->\n\nParagraph.\n",
+		},
+		{
+			name:   "wrapped with CRLF line endings",
+			source: "<!-- <atomdown version=\"1\"/> -->\r\n\r\n<!--\r\n  <atom\r\n    id=\"4P8W2H6K\"\r\n    slug=\"claim\"\r\n  />\r\n-->\r\n\r\nParagraph.\r\n",
+		},
+		{
+			name:   "single line with CRLF line endings",
+			source: "<!-- <atomdown version=\"1\"/> -->\r\n\r\n<!-- <atom id=\"4P8W2H6K\"/> -->\r\n\r\nParagraph.\r\n",
+		},
+		{
+			name:   "wrapped atom-group opening marker",
+			source: "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom-group\n       id=\"7K3M9X2D\"\n       slug=\"findings\"> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n\n<!-- </atom-group> -->\n",
+		},
+		{
+			name:   "wrapped directive at the very start of the file",
+			source: "<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nParagraph.\n",
+		},
+		{
+			name:   "wrapped group close at the very end of the file",
+			source: "<!-- <atom-group id=\"7K3M9X2D\"> -->\n\n<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n\n<!--\n  </atom-group>\n-->\n",
+		},
+		{
+			name:   "wrapped directive between two list items",
+			source: "- one\n\n<!-- <atom\n       id=\"4P8W2H6K\"/> -->\n\n- two\n",
+		},
+		{
+			name:   "wrapped directive inside a tight list",
+			source: "- one\n<!-- <atom\n     id=\"4P8W2H6K\"/> -->\n- two\n",
+		},
+		{
+			// The closing token is found by decoding the element, not by
+			// searching for "/>", so a value that contains one cannot move
+			// the split point.
+			name:   "wrapped with a literal closing token inside a value",
+			source: "<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-note=\"a/>b\"\n  />\n-->\n\nParagraph.\n",
+		},
+		{
+			name:   "wrapped with a blank line inside the comment",
+			source: "<!--\n\n  <atom id=\"4P8W2H6K\"/>\n\n-->\n\nParagraph.\n",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			assertDirectivesRoundTrip(t, testCase.source)
+		})
+	}
+}
+
+// TestEmitFlattenCanonicalizesEveryDirective proves --flatten is the opt-in
+// way back to one line per directive, for every wrapped shape.
+func TestEmitFlattenCanonicalizesEveryDirective(t *testing.T) {
+	source := []byte("<!--\n  <atomdown version=\"1\"/>\n-->\n\n<!-- <atom-group\n       id=\"7K3M9X2D\"> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n  />\n-->\n\nParagraph.\n\n<!--\n  </atom-group>\n-->\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	output, err := EmitWithOptions(document, EmitOptions{Flatten: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom-group id=\"7K3M9X2D\"> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\"/> -->\n\nParagraph.\n\n<!-- </atom-group> -->\n"
+	if string(output) != want {
+		t.Fatalf("EmitWithOptions(Flatten) = %q,\nwant %q", output, want)
+	}
+	for _, marker := range directiveMarkers(string(output)) {
+		if strings.Contains(marker, "\n") {
+			t.Fatalf("--flatten left a directive spanning lines: %q", marker)
+		}
+	}
+}
+
+// TestEmitReordersNothingWhenAttributesAreUnchanged proves the unchanged test
+// is about the attribute set, not its order. A writer that reordered an
+// untouched directive into canonical order would be the same silent reflow
+// the layout rule exists to prevent.
+func TestEmitReordersNothingWhenAttributesAreUnchanged(t *testing.T) {
+	source := "<!-- <atom acme-owner=\"ada\" slug=\"claim\" id=\"4P8W2H6K\"/> -->\n\nParagraph.\n"
+	assertDirectivesRoundTrip(t, source)
+}
+
+// TestEmitKeepsWrappingWhenAnAttributeChanges covers the modified-directive
+// rule. There is no authored text for an attribute set the author never
+// wrote, so the authored skeleton is kept and only the attribute sequence is
+// rebuilt: the directive stays wrapped, at the author's indentation, with the
+// closing token on its own line.
+func TestEmitKeepsWrappingWhenAnAttributeChanges(t *testing.T) {
+	source := []byte("<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-owner=\"ada\"\n  />\n-->\n\nParagraph.\n")
+	document := Parse(source)
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+
+	added := document
+	added.Atoms = append([]Atom(nil), document.Atoms...)
+	added.Atoms[0].Attributes = []Attribute{{Name: "acme-owner", Value: "ada"}, {Name: "acme-status", Value: "approved"}}
+	output, err := Emit(added)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-owner=\"ada\"\n    acme-status=\"approved\"\n  />\n-->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("added attribute: Emit() = %q,\nwant %q", output, want)
+	}
+
+	changed := document
+	changed.Atoms = append([]Atom(nil), document.Atoms...)
+	changed.Atoms[0].Attributes = []Attribute{{Name: "acme-owner", Value: "grace"}}
+	output, err = Emit(changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = "<!--\n  <atom\n    id=\"4P8W2H6K\"\n    acme-owner=\"grace\"\n  />\n-->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("changed value: Emit() = %q,\nwant %q", output, want)
+	}
+
+	removed := document
+	removed.Atoms = append([]Atom(nil), document.Atoms...)
+	removed.Atoms[0].Attributes = nil
+	output, err = Emit(removed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = "<!--\n  <atom\n    id=\"4P8W2H6K\"\n  />\n-->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("removed attribute: Emit() = %q,\nwant %q", output, want)
+	}
+}
+
+// TestEmitKeepsAModifiedOneLineDirectiveOnOneLine is the other half of the
+// modified-directive rule: a shape the author did not use is never invented.
+func TestEmitKeepsAModifiedOneLineDirectiveOnOneLine(t *testing.T) {
+	document := Parse([]byte("<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n"))
+	document.Atoms[0].Attributes = []Attribute{{Name: "acme-status", Value: "approved"}}
+	output, err := Emit(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!-- <atom id=\"4P8W2H6K\" acme-status=\"approved\"/> -->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("Emit() = %q,\nwant %q", output, want)
+	}
+}
+
+// TestEmitKeepsWrappedIndentationWhenASlugArrives proves the rule covers a
+// Core identity attribute too, not only an extension attribute.
+func TestEmitKeepsWrappedIndentationWhenASlugArrives(t *testing.T) {
+	document := Parse([]byte("<!--\n\t<atom\n\t\tid=\"4P8W2H6K\"\n\t/>\n-->\n\nParagraph.\n"))
+	if document.HasErrors() {
+		t.Fatalf("unexpected errors: %#v", document.Diagnostics)
+	}
+	document.Atoms[0].Slug = "claim"
+	output, err := Emit(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!--\n\t<atom\n\t\tid=\"4P8W2H6K\"\n\t\tslug=\"claim\"\n\t/>\n-->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("Emit() = %q,\nwant %q", output, want)
+	}
+}
+
+// TestEmitFallsBackToOneLineForUnreadableMarkerSource proves a hand-built
+// model cannot lose its identity attributes through the layout path. A caller
+// can put anything in MarkerSource; a directive that cannot be read describes
+// no shape to keep.
+func TestEmitFallsBackToOneLineForUnreadableMarkerSource(t *testing.T) {
+	output, err := Emit(Document{Atoms: []Atom{{
+		ID:           "4P8W2H6K",
+		MarkerSource: "not a directive at all",
+		Text:         "Paragraph.",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<!-- <atom id=\"4P8W2H6K\"/> -->\n\nParagraph.\n\n"
+	if string(output) != want {
+		t.Fatalf("Emit() = %q,\nwant %q", output, want)
+	}
+}
