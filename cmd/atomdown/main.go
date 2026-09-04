@@ -18,7 +18,7 @@ const cliVersion = "0.1.0"
 
 // commandNames lists every command the CLI accepts, in the order printUsage
 // and the unknown-command message present them.
-var commandNames = []string{"parse", "emit", "tokens", "lint", "xml", "strip", "materialize", "drift", "verify", "id"}
+var commandNames = []string{"parse", "emit", "tokens", "lint", "xml", "strip", "materialize", "get", "drift", "verify", "id"}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -52,6 +52,8 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 		return runStrip(arguments[1:], stdout)
 	case "materialize":
 		return runMaterialize(arguments[1:], stdout, stderr)
+	case "get":
+		return runGet(arguments[1:], stdout)
 	case "drift", "verify":
 		return runDrift(arguments[1:], stdout)
 	case "id":
@@ -188,14 +190,27 @@ func runLint(arguments []string, output io.Writer) error {
 	return nil
 }
 
-// withoutStrictOnlyWarnings drops the warnings that lint reports only under
-// --strict: an implicit atom (no persistent marker) and a missing document
-// version directive. Default lint stays permissive so mixed and unversioned
-// documents still pass.
+// strictOnlyCodes lists the warnings lint reports only under --strict.
+//
+// The shared property is that each one reports an unfinished adoption of
+// Atomdown rather than a defect in the document: an unmarked block, a
+// missing version directive, or a slug spelled in the author's own style
+// instead of the generated one. Default lint stays permissive so a mixed,
+// unversioned, or hand-slugged document still passes.
+//
+// A duplicate slug is deliberately NOT here. It is a defect no matter how
+// far adoption has gone, because the slug then names no single atom and
+// atomdown get cannot resolve it.
+var strictOnlyCodes = map[string]bool{
+	"implicit-atom":             true,
+	"missing-version-directive": true,
+	"non-canonical-slug":        true,
+}
+
 func withoutStrictOnlyWarnings(diagnostics []atomdown.Diagnostic) []atomdown.Diagnostic {
 	filtered := make([]atomdown.Diagnostic, 0, len(diagnostics))
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Code != "implicit-atom" && diagnostic.Code != "missing-version-directive" {
+		if !strictOnlyCodes[diagnostic.Code] {
 			filtered = append(filtered, diagnostic)
 		}
 	}
@@ -239,8 +254,13 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	write := flags.Bool("w", false, "write result in place")
 	split := flags.String("split", "", "comma-separated CommonMark node names to split into their own atoms (for example: list-item)")
 	digest := flags.Bool("digest", false, "write a Core content digest to every atom that does not already have one")
+	slugs := flags.Bool("slugs", false, "write a generated readable slug to every atom and group that does not already have one")
+	forceSlugs := flags.Bool("force-slugs", false, "replace every existing slug with a generated one (implies --slugs)")
 	if err := flags.Parse(arguments); err != nil {
 		return err
+	}
+	if *forceSlugs {
+		*slugs = true
 	}
 	if *write && (len(flags.Args()) != 1 || flags.Args()[0] == "-") {
 		return errors.New("materialize -w requires one file")
@@ -248,14 +268,19 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 	if *digest && *split != "" {
 		return errors.New("materialize --digest and --split cannot run together")
 	}
+	if *slugs && (*digest || *split != "") {
+		return errors.New("materialize --slugs cannot run together with --digest or --split")
+	}
 	source, err := readInput(flags.Args())
 	if err != nil {
 		return err
 	}
 
 	var result []byte
-	var marked, digested int
+	var marked, digested, slugged int
 	switch {
+	case *slugs:
+		result, marked, slugged, err = atomdown.MaterializeSlugs(source, atomdown.SlugOptions{Force: *forceSlugs})
 	case *digest:
 		result, marked, digested, err = atomdown.MaterializeDigest(source)
 	case *split != "":
@@ -271,8 +296,11 @@ func runMaterialize(arguments []string, output, statusOutput io.Writer) error {
 		return err
 	}
 	summary := materializeSummary(marked)
-	if *digest {
+	switch {
+	case *digest:
 		summary = materializeDigestSummary(marked, digested)
+	case *slugs:
+		summary = materializeSlugSummary(marked, slugged)
 	}
 	if !*write {
 		// stdout must carry only the marked Markdown, so the status line
@@ -315,6 +343,69 @@ func materializeDigestSummary(marked, digested int) string {
 	default:
 		return fmt.Sprintf("ok - marked %d block(s), wrote %d digests", marked, digested)
 	}
+}
+
+func materializeSlugSummary(marked, slugged int) string {
+	switch slugged {
+	case 0:
+		return "ok - every atom and group already has a slug"
+	case 1:
+		return fmt.Sprintf("ok - marked %d block(s), wrote 1 slug", marked)
+	default:
+		return fmt.Sprintf("ok - marked %d block(s), wrote %d slugs", marked, slugged)
+	}
+}
+
+// runGet prints the one atom a selector names: its directive, its resolved
+// ID, and its block text. It is read-only and it never writes the file.
+//
+// The selector spellings and their precedence live in atomdown.Resolve, so
+// a later command that moves or regroups an atom accepts exactly the same
+// spellings without restating the rules.
+func runGet(arguments []string, output io.Writer) error {
+	flags := flag.NewFlagSet("get", flag.ContinueOnError)
+	jsonOutput := flags.Bool("json", false, "emit the resolved atom as JSON")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
+	if len(flags.Args()) == 0 {
+		return errors.New("get requires a selector: an atom ID, a slug, or slug:<name>")
+	}
+	if len(flags.Args()) > 2 {
+		return errors.New("get accepts one selector and at most one file")
+	}
+	selector := flags.Args()[0]
+	source, err := readInput(flags.Args()[1:])
+	if err != nil {
+		return err
+	}
+
+	selection, err := atomdown.Resolve(atomdown.Parse(source), selector)
+	if err != nil {
+		return err
+	}
+
+	if *jsonOutput {
+		encoder := json.NewEncoder(output)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(selection)
+	}
+
+	fmt.Fprintf(output, "id: %s\n", selection.Atom.ID)
+	if selection.Atom.Slug != "" {
+		fmt.Fprintf(output, "slug: %s\n", selection.Atom.Slug)
+	}
+	if selection.GroupID != "" {
+		fmt.Fprintf(output, "group: %s\n", selection.GroupID)
+	}
+	fmt.Fprintf(output, "matched-by: %s\n", selection.MatchedBy)
+	if selection.Atom.MarkerSource != "" {
+		fmt.Fprintf(output, "directive: %s\n", selection.Atom.MarkerSource)
+	}
+	fmt.Fprintln(output)
+	fmt.Fprint(output, strings.TrimRight(selection.Atom.Text, "\r\n"))
+	fmt.Fprintln(output)
+	return nil
 }
 
 func runDrift(arguments []string, output io.Writer) error {
@@ -373,10 +464,17 @@ func inputName(arguments []string) string {
 }
 
 func printUsage(output io.Writer) {
-	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|drift|verify|id> [options] [file|-]")
+	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|get|drift|verify|id> [options] [file|-]")
 	fmt.Fprintln(output, "  emit [--flatten]   write Markdown from a parse JSON document.")
 	fmt.Fprintln(output, "                     Each directive keeps the source layout the author")
 	fmt.Fprintln(output, "                     gave it. --flatten rewrites every directive to one line.")
+	fmt.Fprintln(output, "  materialize --slugs [--force-slugs]")
+	fmt.Fprintln(output, "                     write a generated readable slug to every atom and")
+	fmt.Fprintln(output, "                     group that has none. --force-slugs replaces the ones")
+	fmt.Fprintln(output, "                     already there.")
+	fmt.Fprintln(output, "  get <selector>     print the one atom a selector names. A selector is")
+	fmt.Fprintln(output, "                     an atom ID, a slug, or slug:<name>. An ID wins over")
+	fmt.Fprintln(output, "                     a slug; an ambiguous slug is an error.")
 }
 
 type exitError struct{ code int }

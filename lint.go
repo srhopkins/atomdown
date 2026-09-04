@@ -29,6 +29,7 @@ func lintDocument(document *Document, lineStarts []int, listItemCounts map[int]i
 	}
 
 	seen := make(map[string]Position)
+	slugs := make(map[string]Position)
 	for _, atom := range document.Atoms {
 		if atom.Implicit {
 			document.Diagnostics = append(document.Diagnostics, Diagnostic{
@@ -40,6 +41,7 @@ func lintDocument(document *Document, lineStarts []int, listItemCounts map[int]i
 			continue
 		}
 		lintID(document, "atom", atom.ID, atom.Marker.Start, seen)
+		lintSlug(document, "atom", atom.Slug, atom.Marker.Start, slugs)
 		if atom.Digest != "" && !digestPattern.MatchString(atom.Digest) {
 			document.Diagnostics = append(document.Diagnostics, Diagnostic{
 				Code: "invalid-digest", Severity: SeverityError,
@@ -50,6 +52,7 @@ func lintDocument(document *Document, lineStarts []int, listItemCounts map[int]i
 	}
 	for _, group := range document.Groups {
 		lintID(document, "atom group", group.ID, group.Marker.Start, seen)
+		lintSlug(document, "atom group", group.Slug, group.Marker.Start, slugs)
 		if group.EndMarker != nil && len(group.AtomIDs) == 0 {
 			document.Diagnostics = append(document.Diagnostics, Diagnostic{
 				Code: "empty-group", Severity: SeverityError,
@@ -148,6 +151,61 @@ func lintListStructureSplits(document *Document, listItemCounts map[int]int) {
 		}
 		i = j
 	}
+}
+
+// lintSlug reports the two ways a slug can be unhelpful. Both are
+// warnings, never errors, and the severity choice is the whole point of the
+// rule.
+//
+// SPEC.md states that the slug is a readable alias and that the slug is not
+// identity. Two consequences follow directly. A duplicate slug cannot be an
+// error, because the format permits it and a conforming reader must accept
+// a document that has one; making it an error would reject a valid
+// document. And a slug outside the shape atomdown generates cannot be an
+// error either, because Core puts no constraint on the value at all — an
+// author is free to write "Q3 Findings" as a slug.
+//
+// They are still worth reporting, because the reason a slug exists is that
+// a person can name one atom with it, and neither a duplicate nor an
+// unpredictable spelling can do that. So:
+//
+//   - duplicate-slug is a default-lint warning. It is a real defect in the
+//     document independent of how far Atomdown has been adopted: a selector
+//     that hits it cannot resolve, and atomdown get reports it as
+//     ambiguous. A reader that never uses a slug loses nothing by seeing
+//     it.
+//   - non-canonical-slug is a --strict-only warning. It is a style
+//     preference, not a defect: the slug still resolves, uniquely, and it
+//     is exactly the kind of loose value Core left room for on purpose.
+//     Reporting it by default would nag every author who wrote a slug by
+//     hand, which is the audience the whole feature is for.
+//
+// Neither ever makes lint exit non-zero, because neither is an error.
+func lintSlug(document *Document, subject, slug string, position Position, slugs map[string]Position) {
+	if slug == "" {
+		return
+	}
+	if !IsCanonicalSlug(slug) {
+		document.Diagnostics = append(document.Diagnostics, Diagnostic{
+			Code: "non-canonical-slug", Severity: SeverityWarning,
+			Message: fmt.Sprintf(
+				"%s slug %q is not lowercase kebab-case within %d characters, so it is harder to type as a selector.",
+				subject, slug, SlugMaxLength,
+			),
+			Position: position,
+			Fix:      "Rewrite the slug in lowercase kebab-case, or let atomdown materialize --slugs generate one.",
+		})
+	}
+	if first, exists := slugs[slug]; exists {
+		document.Diagnostics = append(document.Diagnostics, Diagnostic{
+			Code: "duplicate-slug", Severity: SeverityWarning,
+			Message:  fmt.Sprintf("Slug %q was already used at line %d, so it names no single item.", slug, first.Line),
+			Position: position,
+			Fix:      "Give one of them a different slug. A slug is not identity, so changing it is safe.",
+		})
+		return
+	}
+	slugs[slug] = position
 }
 
 func lintID(document *Document, subject, id string, position Position, seen map[string]Position) {
