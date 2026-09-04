@@ -74,6 +74,22 @@
       }
     },
     {
+      "name": "valid-wrapped-directive-emit-layout",
+      "category": "valid",
+      "input": "../testdata/valid/wrapped-directive.md",
+      "expect": {
+        "emit_file": "expected/valid-wrapped-directive.emit.md"
+      }
+    },
+    {
+      "name": "valid-wrapped-directive-emit-flatten",
+      "category": "valid",
+      "input": "../testdata/valid/wrapped-directive.md",
+      "expect": {
+        "emit_flatten_file": "expected/valid-wrapped-directive.emit-flatten.md"
+      }
+    },
+    {
       "name": "valid-extensible-attributes",
       "category": "valid",
       "input": "../testdata/valid/extensible-attributes.md",

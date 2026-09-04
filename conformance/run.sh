@@ -80,6 +80,16 @@ def run_cmd(command, args, input_path, use_stdin):
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def run_emit(input_path, extra_args, use_stdin):
+    """parse the document, then feed that JSON model back to emit."""
+    code, model, err = run_cmd("parse", [], input_path, use_stdin)
+    if code != 0:
+        return code, model, err
+    argv = [bin_path, "emit", *extra_args, "-"]
+    proc = subprocess.run(argv, input=model, capture_output=True)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
 def atom_ids_from_parse(stdout):
     doc = json.loads(stdout.decode("utf-8"))
     ids = []
@@ -191,6 +201,24 @@ for case in cases:
                 with open(dest, "rb") as fh:
                     wanted = fh.read()
                 errors.append(check("digest_file", out == wanted, f"stdout differs from {expect['digest_file']}"))
+
+    for emit_key, emit_args in (("emit_file", []), ("emit_flatten_file", ["--flatten"])):
+        if emit_key not in expect:
+            continue
+        code, out, err = run_emit(input_path, emit_args, use_stdin)
+        dest = resolve(expect[emit_key])
+        if regen and code == 0:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "wb") as fh:
+                fh.write(out)
+        elif code != 0:
+            errors.append(f"{emit_key}: emit exited {code}")
+        elif not os.path.isfile(dest):
+            errors.append(f"{emit_key} missing: {dest}")
+        else:
+            with open(dest, "rb") as fh:
+                wanted = fh.read()
+            errors.append(check(emit_key, out == wanted, f"stdout differs from {expect[emit_key]}"))
 
     need_strip = any(key in expect for key in ("strip_exit", "strip_file"))
     if need_strip:

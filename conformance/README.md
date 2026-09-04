@@ -26,7 +26,9 @@ The binary name does not matter. The command interface must match this contract.
 <bin> <command> [options] [file|-]
 ```
 
-`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `materialize --digest`, `id`. The Go CLI also has `emit`, plain `materialize`, and `drift`/`verify`; this suite does not cover them because they write output back or depend on a prior digest baseline, which is out of scope for a read-only conformance check. `materialize --digest` is the one exception: run on a document whose atoms already have explicit IDs and no digest, it is fully deterministic (it mints no new ID), so its stdout is a byte-exact oracle for the content digest algorithm — see `digest_file` below.
+`command` is one of: `parse`, `tokens`, `lint`, `xml`, `strip`, `emit`, `materialize --digest`, `id`. The Go CLI also has plain `materialize` and `drift`/`verify`; this suite does not cover them because they mint random IDs or depend on a prior digest baseline, which is out of scope for a byte-exact check.
+
+`materialize --digest` and `emit` are covered because both are fully deterministic on the right input. Run `materialize --digest` on a document whose atoms already have explicit IDs and no digest and it mints no new ID, so its stdout is a byte-exact oracle for the content digest algorithm — see `digest_file` below. Run `parse` into `emit` on a document whose atoms already have explicit IDs and it mints no new ID either, so its stdout is a byte-exact oracle for the directive layout rule — see `emit_file` below.
 
 File commands accept at most one file. Use `-` or omit the file to read standard input.
 
@@ -39,6 +41,7 @@ Commands write the result to standard output. Usage and I/O errors go to standar
 - `lint` checks the document. Use `--json` to write a JSON array of diagnostics. Use `--strict` to include `implicit-atom` and `missing-version-directive` warnings. Default `lint` hides both. Default `lint` still reports `directive-splits-list`; that warning is not gated by `--strict`.
 - `xml` writes the normalized XML metadata model. It refuses a document that has error-severity diagnostics.
 - `strip` removes Atomdown directives and writes visible Markdown.
+- `emit` reads a `parse` JSON document on standard input and writes Markdown. Each directive keeps the source layout its author gave it. Use `--flatten` to rewrite every directive to one line.
 - `id` writes one new eight-character Crockford Base32 ID. Use `-n N` to write N IDs, one per line.
 
 `id` is not in the case list. IDs are random. Check the format in your own tests.
@@ -107,6 +110,8 @@ Every field is optional. The runner runs a command only when a related key is pr
 - `lint_strict` (boolean): if `true`, the runner adds `--strict` to `lint`. Default is `false`.
 - `xml_file` (string): path to the expected `xml` bytes, relative to this directory. Compare exact bytes.
 - `strip_file` (string): path to the expected `strip` bytes, relative to this directory. Compare exact bytes.
+- `emit_file` (string): path to the expected `parse` into `emit` bytes, relative to this directory. Compare exact bytes. The runner runs `parse` on the input, pipes that JSON to `emit -`, and compares stdout. Use this only on an input whose atoms already carry explicit `id` attributes, so the run mints no random ID. Every directive in the expected file carries the layout the input's author wrote, wrapping and indentation included; see `SPEC.md` "Directive line span".
+- `emit_flatten_file` (string): the same check with `emit --flatten`, which rewrites every directive to one line in canonical attribute order.
 - `materialize_digest_exit` (integer): expected exit code of `materialize --digest`.
 - `digest_file` (string): path to the expected `materialize --digest` bytes, relative to this directory. Compare exact bytes. Use this only on an input whose atoms already carry explicit `id` attributes and no `digest`, so the run mints no random ID and stdout is fully determined by the content digest algorithm (SHA-256 over the atom's block bytes after normalizing line endings to LF; see `SPEC.md` "Content digest").
 
@@ -136,4 +141,4 @@ CGO_ENABLED=0 go build -o /tmp/ad ./cmd/atomdown
 ./run.sh --regen /tmp/ad
 ```
 
-`--regen` rewrites every `xml_file`, `strip_file`, and `digest_file` from the given binary. Then run without `--regen` to confirm the suite passes.
+`--regen` rewrites every `xml_file`, `strip_file`, `emit_file`, `emit_flatten_file`, and `digest_file` from the given binary. Then run without `--regen` to confirm the suite passes.
