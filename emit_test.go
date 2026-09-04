@@ -189,11 +189,11 @@ func TestEmitErrorsWhenCollisionRetriesAreExhausted(t *testing.T) {
 }
 
 // TestWrappedDirectiveRoundTrip covers design requirement 5 for a directive
-// that spans several source lines: unknown attributes survive a parse and
-// write cycle. Tokenize is lossless, so the wrapped layout itself survives
-// byte for byte there. Emit is a canonicalizing writer -- it always writes
-// one directive per line -- so it preserves the attributes and their order,
-// not the author's line breaks.
+// that spans several source lines: both the unknown attributes and the
+// author's own line breaks survive a parse and write cycle. Emit used to
+// flatten the directive back to one line, byte-identical to the unwrapped
+// form and with no diagnostic, so an author who wrapped a directive for
+// readability lost the wrapping to any tool that round-tripped the document.
 func TestWrappedDirectiveRoundTrip(t *testing.T) {
 	source := []byte("<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n    acme-approved-by=\"ada\"\n  />\n-->\n\nSome content.\n")
 
@@ -214,7 +214,7 @@ func TestWrappedDirectiveRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\" acme-approved-by=\"ada\"/> -->\n\nSome content.\n\n"
+	want := "<!-- <atomdown version=\"1\"/> -->\n\n<!--\n  <atom\n    id=\"4P8W2H6K\"\n    slug=\"claim\"\n    acme-approved-by=\"ada\"\n  />\n-->\n\nSome content.\n\n"
 	if string(output) != want {
 		t.Fatalf("Emit() = %q, want %q", output, want)
 	}
@@ -226,5 +226,15 @@ func TestWrappedDirectiveRoundTrip(t *testing.T) {
 		second.Atoms[0].Attributes[0].Name != "acme-approved-by" ||
 		second.Atoms[0].Attributes[0].Value != "ada" {
 		t.Fatalf("unknown attribute did not survive the cycle: %#v", second.Atoms)
+	}
+
+	// --flatten is the opt-in way back to the canonical one-line form.
+	flattened, err := EmitWithOptions(document, EmitOptions{Flatten: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFlat := "<!-- <atomdown version=\"1\"/> -->\n\n<!-- <atom id=\"4P8W2H6K\" slug=\"claim\" acme-approved-by=\"ada\"/> -->\n\nSome content.\n\n"
+	if string(flattened) != wantFlat {
+		t.Fatalf("EmitWithOptions(Flatten) = %q, want %q", flattened, wantFlat)
 	}
 }

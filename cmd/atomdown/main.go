@@ -75,10 +75,18 @@ func printVersionAndCommands(output io.Writer) {
 }
 
 func runEmit(arguments []string, output io.Writer) error {
-	if len(arguments) > 1 {
+	flags := flag.NewFlagSet("emit", flag.ContinueOnError)
+	// emit preserves each directive's authored source layout, so a wrapped
+	// directive stays wrapped. --flatten is the opt-in canonicalizing
+	// writer: it rewrites every directive to one line.
+	flatten := flags.Bool("flatten", false, "rewrite every directive to one line")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
+	if len(flags.Args()) > 1 {
 		return errors.New("emit accepts at most one file")
 	}
-	source, err := readInput(arguments)
+	source, err := readInput(flags.Args())
 	if err != nil {
 		return err
 	}
@@ -102,7 +110,7 @@ func runEmit(arguments []string, output io.Writer) error {
 	if err := json.Unmarshal(source, &document); err != nil {
 		return fmt.Errorf("invalid document JSON: %w", err)
 	}
-	result, err := atomdown.Emit(document)
+	result, err := atomdown.EmitWithOptions(document, atomdown.EmitOptions{Flatten: *flatten})
 	if err != nil {
 		return err
 	}
@@ -366,6 +374,9 @@ func inputName(arguments []string) string {
 
 func printUsage(output io.Writer) {
 	fmt.Fprintln(output, "Usage: atomdown <parse|emit|tokens|lint|xml|strip|materialize|drift|verify|id> [options] [file|-]")
+	fmt.Fprintln(output, "  emit [--flatten]   write Markdown from a parse JSON document.")
+	fmt.Fprintln(output, "                     Each directive keeps the source layout the author")
+	fmt.Fprintln(output, "                     gave it. --flatten rewrites every directive to one line.")
 }
 
 type exitError struct{ code int }

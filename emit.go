@@ -7,9 +7,48 @@ import (
 	"strings"
 )
 
-// Emit reconstructs canonical marked Markdown from a parsed document model.
+// EmitOptions selects how Emit writes each directive.
+type EmitOptions struct {
+	// Flatten rewrites every directive to one source line, discarding the
+	// line wrapping and indentation the author gave it. It is the opt-in
+	// canonicalizing writer: emit --flatten on the command line.
+	Flatten bool
+}
+
+// Emit reconstructs marked Markdown from a parsed document model.
 // Parse-only fields such as positions, node types, and diagnostics are ignored.
+//
+// Emit preserves each directive's authored source layout. A directive whose
+// attributes are unchanged is written back byte for byte, so line wrapping,
+// interior newlines and indentation survive a parse and write cycle. See
+// EmitWithOptions for the rule that applies to a directive the caller
+// modified, and for the flattening option.
 func Emit(document Document) ([]byte, error) {
+	return EmitWithOptions(document, EmitOptions{})
+}
+
+// EmitWithOptions is Emit with explicit options.
+//
+// Layout rules, in the order they apply to one directive:
+//
+//  1. With EmitOptions.Flatten, the directive is written as one line in
+//     canonical attribute order. Nothing of the authored shape survives.
+//  2. When the model carries no authored marker source — a directive Emit is
+//     writing for the first time — it is written as one line.
+//  3. When the attribute set is unchanged (the same names carrying the same
+//     values, in any order), the authored bytes are written back exactly.
+//  4. When the attribute set changed, the directive is rebuilt into the
+//     authored skeleton: a wrapped directive stays wrapped, each attribute
+//     keeps the author's separator and indentation, and the closing token
+//     keeps its own line. Attribute order becomes canonical, because the
+//     model records no authored order for an attribute that just arrived.
+//     A directive the author wrote on one line stays on one line.
+//
+// Rule 4 is the deliberate limit of what a writer can honor. The authored
+// bytes describe one attribute set; once that set changes there is no
+// authored text for the new state, so the skeleton is kept and the attribute
+// sequence is rebuilt.
+func EmitWithOptions(document Document, options EmitOptions) ([]byte, error) {
 	// Collect every ID already present before minting any new one, so a
 	// generated atom or group ID never collides with one the document
 	// already has.
@@ -53,7 +92,8 @@ func Emit(document Document) ([]byte, error) {
 		if version == "" {
 			version = "1"
 		}
-		marker, err := sourceMarker("atomdown", true, []Attribute{{Name: "version", Value: version}}, document.Attributes)
+		marker, err := directiveText("atomdown", true, document.MarkerSource, options,
+			[]Attribute{{Name: "version", Value: version}}, document.Attributes)
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +107,8 @@ func Emit(document Document) ([]byte, error) {
 		groupIndex := memberships[index]
 		if groupIndex != openGroup {
 			if openGroup >= 0 {
-				output.WriteString("<!-- </atom-group> -->\n\n")
+				output.WriteString(groupCloseText(groups[openGroup], options))
+				output.WriteString("\n\n")
 				closedGroups[openGroup] = true
 			}
 			openGroup = groupIndex
@@ -80,7 +121,7 @@ func Emit(document Document) ([]byte, error) {
 				if group.Slug != "" {
 					attributes = append(attributes, Attribute{Name: "slug", Value: group.Slug})
 				}
-				marker, err := sourceMarker("atom-group", false, attributes, group.Attributes)
+				marker, err := directiveText("atom-group", false, group.MarkerSource, options, attributes, group.Attributes)
 				if err != nil {
 					return nil, err
 				}
@@ -97,7 +138,7 @@ func Emit(document Document) ([]byte, error) {
 			if atom.Digest != "" {
 				attributes = append(attributes, Attribute{Name: "digest", Value: atom.Digest})
 			}
-			marker, err := sourceMarker("atom", true, attributes, atom.Attributes)
+			marker, err := directiveText("atom", true, atom.MarkerSource, options, attributes, atom.Attributes)
 			if err != nil {
 				return nil, err
 			}
@@ -107,7 +148,8 @@ func Emit(document Document) ([]byte, error) {
 		writeBlock(&output, atom.Text)
 	}
 	if openGroup >= 0 {
-		output.WriteString("<!-- </atom-group> -->\n")
+		output.WriteString(groupCloseText(groups[openGroup], options))
+		output.WriteString("\n")
 	}
 
 	return output.Bytes(), nil
@@ -153,38 +195,85 @@ func resolveGroupMemberships(atoms []Atom, groups []AtomGroup, groupByID map[str
 	return memberships, nil
 }
 
-func sourceMarker(name string, selfClosing bool, core, extensions []Attribute) (string, error) {
-	seen := make(map[string]bool, len(core)+len(extensions))
-	var source strings.Builder
-	source.WriteString("<!-- <")
-	source.WriteString(name)
-	for _, attribute := range append(core, extensions...) {
-		if attribute.Name == "" {
-			return "", fmt.Errorf("%s has an empty attribute name", name)
-		}
-		if seen[attribute.Name] {
-			return "", fmt.Errorf("%s has duplicate attribute %q", name, attribute.Name)
-		}
-		seen[attribute.Name] = true
-		source.WriteByte(' ')
-		source.WriteString(attribute.Name)
-		source.WriteString(`="`)
-		if err := xml.EscapeText(&source, []byte(attribute.Value)); err != nil {
-			return "", fmt.Errorf("escape %s attribute %q: %w", name, attribute.Name, err)
-		}
-		source.WriteByte('"')
-	}
-	if selfClosing {
-		source.WriteByte('/')
-	}
-	source.WriteString("> -->")
+// directiveText writes one directive, keeping as much of the author's source
+// layout as the requested attribute set allows. EmitWithOptions documents the
+// rule this implements.
+func directiveText(name string, selfClosing bool, markerSource string, options EmitOptions, core, extensions []Attribute) (string, error) {
+	attributes := make([]Attribute, 0, len(core)+len(extensions))
+	attributes = append(attributes, core...)
+	attributes = append(attributes, extensions...)
 
-	body := strings.TrimSuffix(strings.TrimPrefix(source.String(), "<!-- "), " -->")
-	decoder := xml.NewDecoder(strings.NewReader(body))
-	if _, err := decoder.Token(); err != nil {
-		return "", fmt.Errorf("invalid %s marker: %w", name, err)
+	if options.Flatten || markerSource == "" {
+		return flatLayout(name, selfClosing).render(name, attributes)
 	}
-	return source.String(), nil
+
+	layout, err := parseDirectiveLayout([]byte(markerSource))
+	if err != nil {
+		// The recorded bytes are not a directive this package can read, so
+		// they describe no shape worth keeping. A caller that hand-built the
+		// model can put anything in this field; the identity fields still
+		// have to reach the output.
+		return flatLayout(name, selfClosing).render(name, attributes)
+	}
+
+	authored, err := markerAttributeValues(markerSource)
+	if err == nil && sameAttributeValues(authored, attributes) {
+		return markerSource, nil
+	}
+	return layout.render(name, attributes)
+}
+
+// groupCloseText writes an atom group's closing directive. The directive
+// carries no attributes, so an authored one is always written back exactly.
+func groupCloseText(group AtomGroup, options EmitOptions) string {
+	if options.Flatten || group.EndMarkerSource == "" {
+		return "<!-- </atom-group> -->"
+	}
+	return group.EndMarkerSource
+}
+
+// markerAttributeValues reads every attribute of an authored directive,
+// identity attributes included, as one name-to-value map. It decodes the
+// marker the way parseDirective does, so an escaped value compares equal to
+// the model value the parser produced from it.
+func markerAttributeValues(markerSource string) (map[string]string, error) {
+	start := strings.Index(markerSource, "<!--")
+	end := strings.LastIndex(markerSource, "-->")
+	if start < 0 || end < start {
+		return nil, fmt.Errorf("marker is not an HTML comment")
+	}
+	body := strings.TrimSpace(markerSource[start+len("<!--") : end])
+	decoder := xml.NewDecoder(strings.NewReader(body))
+	token, err := decoder.RawToken()
+	if err != nil {
+		return nil, err
+	}
+	element, isStart := token.(xml.StartElement)
+	if !isStart {
+		return map[string]string{}, nil
+	}
+	values := make(map[string]string, len(element.Attr))
+	for _, attribute := range element.Attr {
+		values[xmlAttributeName(attribute.Name)] = attribute.Value
+	}
+	return values, nil
+}
+
+// sameAttributeValues reports whether an authored directive already carries
+// exactly the attributes a writer is about to write. Order does not matter:
+// the author's order is part of the authored bytes, and reordering an
+// unchanged set would be the same silent reflow this rule exists to prevent.
+func sameAttributeValues(authored map[string]string, attributes []Attribute) bool {
+	if len(authored) != len(attributes) {
+		return false
+	}
+	for _, attribute := range attributes {
+		value, exists := authored[attribute.Name]
+		if !exists || value != attribute.Value {
+			return false
+		}
+	}
+	return true
 }
 
 func writeBlock(output *bytes.Buffer, text string) {

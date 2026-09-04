@@ -87,6 +87,7 @@ func Parse(source []byte) Document {
 		document.Declared = true
 		document.Version = item.version
 		document.Attributes = item.attributes
+		document.MarkerSource = string(source[item.rawRange.start:item.rawRange.end])
 	}
 
 	assigned := make(map[int]int)
@@ -141,10 +142,11 @@ func Parse(source []byte) Document {
 		block := blocks[blockIndex]
 		atom := Atom{
 			ID: item.id, Slug: item.slug, Digest: item.digest, Attributes: item.attributes,
-			Marker:   rangePointer(makeRange(item.rawRange, lineStarts)),
-			Content:  makeRange(byteRange{block.start, block.end}, lineStarts),
-			NodeType: block.nodeType,
-			Text:     string(bytes.TrimRight(source[block.start:block.end], "\r\n")),
+			Marker:       rangePointer(makeRange(item.rawRange, lineStarts)),
+			MarkerSource: string(source[item.rawRange.start:item.rawRange.end]),
+			Content:      makeRange(byteRange{block.start, block.end}, lineStarts),
+			NodeType:     block.nodeType,
+			Text:         string(bytes.TrimRight(source[block.start:block.end], "\r\n")),
 		}
 		assigned[blockIndex] = len(document.Atoms)
 		document.Atoms = append(document.Atoms, atom)
@@ -168,7 +170,7 @@ func Parse(source []byte) Document {
 	sort.SliceStable(document.Atoms, func(left, right int) bool {
 		return document.Atoms[left].Content.Start.Offset < document.Atoms[right].Content.Start.Offset
 	})
-	applyGroups(&document, directives, lineStarts)
+	applyGroups(&document, source, directives, lineStarts)
 	lintDocument(&document, lineStarts, listItemCounts)
 	return document
 }
@@ -579,7 +581,7 @@ func firstBlockingDirective(directives []directive, current int, blockStart int)
 	return directive{}, false
 }
 
-func applyGroups(document *Document, directives []directive, lineStarts []int) {
+func applyGroups(document *Document, source []byte, directives []directive, lineStarts []int) {
 	var open *AtomGroup
 	for _, item := range directives {
 		switch item.kind {
@@ -594,7 +596,8 @@ func applyGroups(document *Document, directives []directive, lineStarts []int) {
 			}
 			group := AtomGroup{
 				ID: item.id, Slug: item.slug, Attributes: item.attributes,
-				Marker: makeRange(item.rawRange, lineStarts),
+				Marker:       makeRange(item.rawRange, lineStarts),
+				MarkerSource: string(source[item.rawRange.start:item.rawRange.end]),
 			}
 			document.Groups = append(document.Groups, group)
 			open = &document.Groups[len(document.Groups)-1]
@@ -609,6 +612,7 @@ func applyGroups(document *Document, directives []directive, lineStarts []int) {
 			}
 			closing := makeRange(item.rawRange, lineStarts)
 			open.EndMarker = &closing
+			open.EndMarkerSource = string(source[item.rawRange.start:item.rawRange.end])
 			for atomIndex := range document.Atoms {
 				atom := &document.Atoms[atomIndex]
 				if atom.Implicit || atom.Marker == nil {

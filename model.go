@@ -26,11 +26,16 @@ type Atom struct {
 	Digest     string      `json:"digest,omitempty"`
 	Attributes []Attribute `json:"attributes,omitempty"`
 	Marker     *Range      `json:"marker,omitempty"`
-	Content    Range       `json:"content"`
-	NodeType   string      `json:"nodeType"`
-	Text       string      `json:"text"`
-	Implicit   bool        `json:"implicit"`
-	GroupID    string      `json:"groupId,omitempty"`
+	// MarkerSource is the atom directive exactly as the author wrote it,
+	// from the opening "<!--" through the closing "-->". A writer copies
+	// these bytes so authored line wrapping and indentation survive a parse
+	// and write cycle; see SPEC.md "Directive line span".
+	MarkerSource string `json:"markerSource,omitempty"`
+	Content      Range  `json:"content"`
+	NodeType     string `json:"nodeType"`
+	Text         string `json:"text"`
+	Implicit     bool   `json:"implicit"`
+	GroupID      string `json:"groupId,omitempty"`
 }
 
 // AtomGroup is a contiguous, ordered collection of explicit atoms.
@@ -40,7 +45,11 @@ type AtomGroup struct {
 	Attributes []Attribute `json:"attributes,omitempty"`
 	Marker     Range       `json:"marker"`
 	EndMarker  *Range      `json:"endMarker,omitempty"`
-	AtomIDs    []string    `json:"atomIds,omitempty"`
+	// MarkerSource and EndMarkerSource are the opening and closing group
+	// directives exactly as the author wrote them. See Atom.MarkerSource.
+	MarkerSource    string   `json:"markerSource,omitempty"`
+	EndMarkerSource string   `json:"endMarkerSource,omitempty"`
+	AtomIDs         []string `json:"atomIds,omitempty"`
 }
 
 // Severity describes the effect of a diagnostic.
@@ -62,12 +71,15 @@ type Diagnostic struct {
 
 // Document is the parsed Atomdown view of a Markdown source file.
 type Document struct {
-	Declared    bool         `json:"declared"`
-	Version     string       `json:"version,omitempty"`
-	Attributes  []Attribute  `json:"attributes,omitempty"`
-	Atoms       []Atom       `json:"atoms"`
-	Groups      []AtomGroup  `json:"groups,omitempty"`
-	Diagnostics []Diagnostic `json:"diagnostics,omitempty"`
+	Declared   bool        `json:"declared"`
+	Version    string      `json:"version,omitempty"`
+	Attributes []Attribute `json:"attributes,omitempty"`
+	// MarkerSource is the atomdown document directive exactly as the author
+	// wrote it. See Atom.MarkerSource.
+	MarkerSource string       `json:"markerSource,omitempty"`
+	Atoms        []Atom       `json:"atoms"`
+	Groups       []AtomGroup  `json:"groups,omitempty"`
+	Diagnostics  []Diagnostic `json:"diagnostics,omitempty"`
 }
 
 // HasErrors reports whether the document contains an error diagnostic.
